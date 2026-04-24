@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "743912195219",
+    "project_id": "fleetsystem-9ac31",
+    "storage_bucket": "fleetsystem-9ac31.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:743912195219:android:eedc5c9d77d1ee387f7966",
+        "android_client_info": {
+          "package_name": "com.fleetmanager.fleet_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDM-P5zR2V5jmh7GRivF6pjQ-LGwC0W6dc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

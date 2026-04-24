@@ -1,0 +1,36 @@
+# Python / Django
+backend/venv/
+backend/__pycache__/
+backend/**/__pycache__/
+backend/*.pyc
+backend/**/*.pyc
+backend/*.pyo
+backend/db.sqlite3
+backend/.env
+backend/staticfiles/
+
+# Flutter
+flutter_app/fleet_app/.dart_tool/
+flutter_app/fleet_app/build/
+flutter_app/fleet_app/.flutter-plugins
+flutter_app/fleet_app/.flutter-plugins-dependencies
+flutter_app/fleet_app/.packages
+flutter_app/fleet_app/pubspec.lock
+flutter_app/fleet_app/android/.gradle/
+flutter_app/fleet_app/android/local.properties
+flutter_app/fleet_app/android/key.properties
+flutter_app/fleet_app/ios/Pods/
+flutter_app/fleet_app/.idea/
+
+# PostgreSQL data
+pgdata/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
