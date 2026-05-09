@@ -45,8 +45,10 @@ class _AddTripPageState extends State<AddTripPage> {
         context.go('/trips');
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error: $e'), backgroundColor: AppTheme.error));
+      }
     } finally {
       setState(() => _loading = false);
     }
@@ -74,7 +76,7 @@ class _AddTripPageState extends State<AddTripPage> {
               Padding(
                 padding: const EdgeInsets.only(bottom: 16),
                 child: DropdownButtonFormField<String>(
-                  value: _cargoType,
+                  initialValue: _cargoType,
                   decoration: const InputDecoration(labelText: 'Cargo type'),
                   items: const [
                     DropdownMenuItem(value: 'general',    child: Text('General Freight')),

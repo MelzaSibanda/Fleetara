@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../data/datasources/auth_remote_datasource.dart';
 import 'auth_event.dart';
@@ -51,8 +52,23 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   }
 
   String _parseError(dynamic e) {
-    if (e.toString().contains('400')) return 'Invalid username or password.';
-    if (e.toString().contains('connection')) return 'Cannot connect to server.';
+    if (e is DioException && e.response?.data != null) {
+      final data = e.response!.data;
+      if (data is Map) {
+        final msgs = data.entries.expand((entry) {
+          final v = entry.value;
+          final field = entry.key == 'non_field_errors' ? '' : '${entry.key}: ';
+          if (v is List) return v.map((m) => '$field$m');
+          return ['$field$v'];
+        }).toList();
+        if (msgs.isNotEmpty) return msgs.join('\n');
+      }
+      if (data is String && data.isNotEmpty) return data;
+    }
+    if (e.toString().contains('connection refused') ||
+        e.toString().contains('SocketException')) {
+      return 'Cannot connect to server. Is the backend running?';
+    }
     return 'Something went wrong. Please try again.';
   }
 }

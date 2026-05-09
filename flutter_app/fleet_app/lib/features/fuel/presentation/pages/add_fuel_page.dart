@@ -42,8 +42,10 @@ class _AddFuelPageState extends State<AddFuelPage> {
         context.go('/fuel');
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error: $e'), backgroundColor: AppTheme.error));
+      }
     } finally {
       setState(() => _loading = false);
     }
@@ -65,7 +67,7 @@ class _AddFuelPageState extends State<AddFuelPage> {
               Padding(
                 padding: const EdgeInsets.only(bottom: 16),
                 child: DropdownButtonFormField<String>(
-                  value: _fuelType,
+                  initialValue: _fuelType,
                   decoration: const InputDecoration(labelText: 'Fuel type'),
                   items: const [
                     DropdownMenuItem(value: 'diesel', child: Text('Diesel')),

@@ -15,27 +15,50 @@ class VehiclesPage extends StatelessWidget {
       create: (_) => VehicleBloc()..add(LoadVehicles()),
       child: AppShell(
         title: 'Vehicles',
-        floatingActionButton: FloatingActionButton.extended(
-          onPressed: () => context.go('/vehicles/add'),
-          backgroundColor: AppTheme.primary,
-          icon: const Icon(Icons.add, color: Colors.white),
-          label: const Text('Add Vehicle', style: TextStyle(color: Colors.white)),
-        ),
+        actions: [
+          ElevatedButton.icon(
+            onPressed: () => context.go('/vehicles/add'),
+            icon: const Icon(Icons.add, size: 16, color: Colors.white),
+            label: const Text('Add', style: TextStyle(color: Colors.white)),
+            style: ElevatedButton.styleFrom(
+              minimumSize: const Size(0, 32),
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
         child: BlocBuilder<VehicleBloc, VehicleState>(
           builder: (context, state) {
-            if (state is VehicleLoading) return const Center(child: CircularProgressIndicator());
-            if (state is VehicleError)   return Center(child: Text(state.message));
+            if (state is VehicleLoading) {
+              return const Center(child: CircularProgressIndicator(color: AppTheme.primary, strokeWidth: 2));
+            }
+            if (state is VehicleError) {
+              return Center(child: Text(state.message, style: const TextStyle(color: AppTheme.rose)));
+            }
             if (state is VehiclesLoaded) {
               return DefaultTabController(
-                length: 2,
+                length: 3,
                 child: Column(children: [
-                  const TabBar(
-                    labelColor: AppTheme.primary,
-                    tabs: [Tab(text: 'Horses (Trucks)'), Tab(text: 'Trailers')],
+                  Container(
+                    color: AppTheme.surface,
+                    child: const TabBar(
+                      labelColor: AppTheme.primary,
+                      unselectedLabelColor: AppTheme.textMuted,
+                      labelStyle: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                      indicatorColor: AppTheme.primary,
+                      indicatorWeight: 2,
+                      tabs: [
+                        Tab(text: 'Horses'),
+                        Tab(text: 'Trailers'),
+                        Tab(text: 'Alerts'),
+                      ],
+                    ),
                   ),
+                  const Divider(height: 0.5, thickness: 0.5, color: AppTheme.border),
                   Expanded(child: TabBarView(children: [
                     _VehicleList(vehicles: state.horses),
                     _VehicleList(vehicles: state.trailers),
+                    const _AlertsTab(),
                   ])),
                 ]),
               );
@@ -55,14 +78,10 @@ class _VehicleList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (vehicles.isEmpty) {
-      return Center(
-        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Icon(Icons.local_shipping_outlined, size: 64, color: Colors.grey[300]),
-          const SizedBox(height: 16),
-          Text('No vehicles yet', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
-          const Text('Tap the button below to add one.', style: TextStyle(color: Colors.grey)),
-        ]),
+      return const EmptyState(
+        icon: Icons.local_shipping_outlined,
+        title: 'No vehicles yet',
+        subtitle: 'Add your first vehicle to get started.',
       );
     }
     return ListView.builder(
@@ -77,74 +96,135 @@ class _VehicleCard extends StatelessWidget {
   final VehicleModel vehicle;
   const _VehicleCard({required this.vehicle});
 
+  Color get _statusColor {
+    switch (vehicle.status) {
+      case 'active':      return AppTheme.primary;
+      case 'maintenance': return AppTheme.amber;
+      case 'on_trip':     return AppTheme.emerald;
+      default:            return AppTheme.textMuted;
+    }
+  }
+
+  String get _statusLabel {
+    switch (vehicle.status) {
+      case 'active':      return 'Active';
+      case 'maintenance': return 'Maintenance';
+      case 'on_trip':     return 'On trip';
+      default:            return vehicle.status;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final statusColor = vehicle.status == 'active'
-      ? AppTheme.success
-      : vehicle.status == 'maintenance' ? AppTheme.warning : Colors.grey;
+    final kmToService = vehicle.kmUntilService;
+    final odom        = vehicle.odometer;
+    final interval    = 20000;
+    final progress    = odom > 0 ? ((interval - kmToService) / interval).clamp(0.0, 1.0) : 0.0;
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Expanded(child: Text(vehicle.registrationNumber,
-              style: Theme.of(context).textTheme.titleMedium)),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: statusColor.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: statusColor.withValues(alpha: 0.3)),
-              ),
-              child: Text(vehicle.status,
-                style: TextStyle(fontSize: 12, color: statusColor, fontWeight: FontWeight.w600)),
-            ),
-          ]),
-          const SizedBox(height: 6),
-          Text('${vehicle.make} ${vehicle.model} (${vehicle.year})',
-            style: Theme.of(context).textTheme.bodyMedium),
-          const SizedBox(height: 12),
-          Row(children: [
-            _InfoChip(icon: Icons.speed,       label: '${vehicle.odometer} km'),
-            const SizedBox(width: 8),
-            _InfoChip(icon: Icons.build_circle, label: '${vehicle.kmUntilService} km to service'),
-            if (vehicle.serviceDue) ...[
-              const SizedBox(width: 8),
-              const _InfoChip(icon: Icons.warning_amber, label: 'Service due', color: AppTheme.warning),
-            ],
-          ]),
-          const SizedBox(height: 12),
-          const Divider(),
-          Row(children: [
-            const Icon(Icons.badge_outlined, size: 14, color: Colors.grey),
-            const SizedBox(width: 4),
-            Text('License: ${vehicle.licenseExpiry}',
-              style: const TextStyle(fontSize: 12, color: Colors.grey)),
-            const SizedBox(width: 16),
-            const Icon(Icons.security, size: 14, color: Colors.grey),
-            const SizedBox(width: 4),
-            Text('Insurance: ${vehicle.insuranceExpiry}',
-              style: const TextStyle(fontSize: 12, color: Colors.grey)),
-          ]),
-        ]),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppTheme.border, width: 0.5),
       ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        // Header row
+        Row(children: [
+          Container(
+            width: 36, height: 36,
+            decoration: BoxDecoration(
+              color: _statusColor.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(Icons.local_shipping, color: _statusColor, size: 18),
+          ),
+          const SizedBox(width: 10),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(vehicle.registrationNumber,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppTheme.textPrimary)),
+            Text('${vehicle.make} ${vehicle.model} · ${vehicle.year}',
+              style: const TextStyle(fontSize: 11, color: AppTheme.textMuted)),
+          ])),
+          _Pill(label: _statusLabel, color: _statusColor),
+        ]),
+        const SizedBox(height: 12),
+        // 3-col data grid
+        Row(children: [
+          _DataCell(label: 'Odometer',   value: '${vehicle.odometer} km'),
+          _DataCell(
+            label: 'To service',
+            value: '${vehicle.kmUntilService} km',
+            valueColor: vehicle.serviceDue ? AppTheme.rose : AppTheme.emerald,
+          ),
+          const _DataCell(label: 'Driver', value: '—'),
+        ]),
+        const SizedBox(height: 10),
+        // Service progress bar
+        FleetProgressBar(value: progress),
+        const SizedBox(height: 10),
+        // Bottom row
+        Row(children: [
+          const Icon(Icons.badge_outlined, size: 12, color: AppTheme.textMuted),
+          const SizedBox(width: 4),
+          Text('Licence: ${vehicle.licenseExpiry}',
+            style: const TextStyle(fontSize: 11, color: AppTheme.textMuted)),
+          const SizedBox(width: 14),
+          const Icon(Icons.security, size: 12, color: AppTheme.textMuted),
+          const SizedBox(width: 4),
+          Text('Insurance: ${vehicle.insuranceExpiry}',
+            style: const TextStyle(fontSize: 11, color: AppTheme.textMuted)),
+          if (vehicle.serviceDue) ...[
+            const Spacer(),
+            _Pill(label: 'Service due', color: AppTheme.rose),
+          ],
+        ]),
+      ]),
     );
   }
 }
 
-class _InfoChip extends StatelessWidget {
-  final IconData icon;
-  final String   label;
-  final Color    color;
-  const _InfoChip({required this.icon, required this.label, this.color = Colors.grey});
+class _DataCell extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color  valueColor;
+  const _DataCell({required this.label, required this.value, this.valueColor = AppTheme.textPrimary});
 
   @override
-  Widget build(BuildContext context) {
-    return Row(children: [
-      Icon(icon, size: 14, color: color),
-      const SizedBox(width: 4),
-      Text(label, style: TextStyle(fontSize: 12, color: color)),
-    ]);
-  }
+  Widget build(BuildContext context) => Expanded(
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(label, style: const TextStyle(fontSize: 10, color: AppTheme.textMuted)),
+      const SizedBox(height: 2),
+      Text(value,
+        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: valueColor)),
+    ]),
+  );
+}
+
+class _Pill extends StatelessWidget {
+  final String label;
+  final Color  color;
+  const _Pill({required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: 0.12),
+      borderRadius: BorderRadius.circular(20),
+    ),
+    child: Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w500, color: color)),
+  );
+}
+
+class _AlertsTab extends StatelessWidget {
+  const _AlertsTab();
+
+  @override
+  Widget build(BuildContext context) => const EmptyState(
+    icon: Icons.notifications_none_outlined,
+    title: 'No vehicle alerts',
+    subtitle: 'Licence, insurance, and service alerts will appear here.',
+  );
 }
