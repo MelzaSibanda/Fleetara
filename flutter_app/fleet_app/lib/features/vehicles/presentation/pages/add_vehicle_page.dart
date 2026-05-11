@@ -45,8 +45,10 @@ class _AddVehiclePageState extends State<AddVehiclePage> {
         context.go('/vehicles');
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e'), backgroundColor: AppTheme.error));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: AppTheme.error));
+      }
     } finally {
       setState(() => _loading = false);
     }
