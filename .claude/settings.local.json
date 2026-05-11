@@ -10,7 +10,8 @@
       "Bash(python3 -m django --version)",
       "Bash(python3 -m pip list)",
       "Bash(python3 manage.py check)",
-      "Bash(python3 manage.py migrate)"
+      "Bash(python3 manage.py migrate)",
+      "Bash(python manage.py runserver)"
     ]
   }
 }
