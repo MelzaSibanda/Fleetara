@@ -32,11 +32,15 @@ class _TripDetailPageState extends State<TripDetailPage> {
       await sl<ApiClient>().dio.patch('/trips/${widget.tripId}/status/',
         data: {'status': newStatus});
       _loadTrip();
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Trip $newStatus'), backgroundColor: AppTheme.success));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Trip $newStatus'), backgroundColor: AppTheme.success));
+      }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e'), backgroundColor: AppTheme.error));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: AppTheme.error));
+      }
     }
   }
 

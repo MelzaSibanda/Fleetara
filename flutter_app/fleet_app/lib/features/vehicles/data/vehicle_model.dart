@@ -1,5 +1,3 @@
-import 'package:flutter/material.dart';
-
 class VehicleModel {
   final int     id;
   final String  registrationNumber;

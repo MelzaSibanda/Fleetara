@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(flutter pub *)",
+      "Bash(flutter analyze *)",
+      "Bash(flutter devices *)",
+      "Bash(flutter run *)",
+      "Bash(pip --version)",
+      "Bash(python3 -m pip --version)",
+      "Bash(python3 -m django --version)",
+      "Bash(python3 -m pip list)",
+      "Bash(python3 manage.py check)",
+      "Bash(python3 manage.py migrate)"
+    ]
+  }
+}

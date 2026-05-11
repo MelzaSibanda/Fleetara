@@ -45,8 +45,10 @@ class _AddInvoicePageState extends State<AddInvoicePage> {
         context.go('/invoices');
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e'), backgroundColor: AppTheme.error));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: AppTheme.error));
+      }
     } finally {
       setState(() => _loading = false);
     }
@@ -64,7 +66,7 @@ class _AddInvoicePageState extends State<AddInvoicePage> {
             key: _formKey,
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               DropdownButtonFormField<String>(
-                value: _type,
+                initialValue: _type,
                 decoration: const InputDecoration(labelText: 'Invoice type'),
                 items: const [
                   DropdownMenuItem(value: 'receivable', child: Text('Receivable (Client owes us)')),
@@ -74,7 +76,7 @@ class _AddInvoicePageState extends State<AddInvoicePage> {
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
-                value: _category,
+                initialValue: _category,
                 decoration: const InputDecoration(labelText: 'Category'),
                 items: const [
                   DropdownMenuItem(value: 'trip',    child: Text('Trip / Freight')),

@@ -42,8 +42,10 @@ class _AddRepairPageState extends State<AddRepairPage> {
         context.go('/repairs');
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e'), backgroundColor: AppTheme.error));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: AppTheme.error));
+      }
     } finally {
       setState(() => _loading = false);
     }
@@ -71,7 +73,7 @@ class _AddRepairPageState extends State<AddRepairPage> {
                 ),
               ),
               DropdownButtonFormField<String>(
-                value: _priority,
+                initialValue: _priority,
                 decoration: const InputDecoration(labelText: 'Priority'),
                 items: const [
                   DropdownMenuItem(value: 'low',      child: Text('Low')),
@@ -83,7 +85,7 @@ class _AddRepairPageState extends State<AddRepairPage> {
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
-                value: _vehicleType,
+                initialValue: _vehicleType,
                 decoration: const InputDecoration(labelText: 'Vehicle type'),
                 items: const [
                   DropdownMenuItem(value: 'horse',   child: Text('Horse (Truck)')),

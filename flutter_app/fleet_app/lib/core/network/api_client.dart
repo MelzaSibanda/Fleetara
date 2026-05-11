@@ -1,10 +1,11 @@
 import 'package:dio/dio.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiClient {
   static const String baseUrl = 'http://127.0.0.1:8000/api';
 
   late final Dio _dio;
+  static String? _accessToken;
+  static String? _storedRefreshToken;
 
   ApiClient() {
     _dio = Dio(BaseOptions(
@@ -16,10 +17,8 @@ class ApiClient {
 
     _dio.interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) async {
-        final prefs = await SharedPreferences.getInstance();
-        final token = prefs.getString('access_token');
-        if (token != null) {
-          options.headers['Authorization'] = 'Bearer $token';
+        if (_accessToken != null) {
+          options.headers['Authorization'] = 'Bearer $_accessToken';
         }
         return handler.next(options);
       },
@@ -37,16 +36,19 @@ class ApiClient {
 
   Future<bool> _refreshToken() async {
     try {
-      final prefs        = await SharedPreferences.getInstance();
-      final refreshToken = prefs.getString('refresh_token');
-      if (refreshToken == null) return false;
+      if (_storedRefreshToken == null) return false;
 
-      final response = await _dio.post('/auth/token/refresh/', data: {'refresh': refreshToken});
-      await prefs.setString('access_token', response.data['access']);
+      final response = await _dio.post('/auth/token/refresh/', data: {'refresh': _storedRefreshToken});
+      _accessToken = response.data['access'];
       return true;
     } catch (_) {
       return false;
     }
+  }
+
+  void setTokens(String accessToken, String refreshToken) {
+    _accessToken = accessToken;
+    _storedRefreshToken = refreshToken;
   }
 
   Dio get dio => _dio;
