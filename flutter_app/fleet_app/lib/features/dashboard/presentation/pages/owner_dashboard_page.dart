@@ -204,44 +204,6 @@ class _SidebarItem extends StatelessWidget {
 class _FleetHealthCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-<<<<<<< HEAD
-    final actions = [
-      {'icon': Icons.add_road,          'label': 'New Trip',  'color': AppTheme.primary},
-      {'icon': Icons.local_gas_station, 'label': 'Log Fuel',  'color': AppTheme.accent},
-      {'icon': Icons.build_outlined,    'label': 'Service',   'color': AppTheme.warning},
-      {'icon': Icons.receipt_long,      'label': 'Invoice',   'color': AppTheme.success},
-    ];
-
-    return GridView.count(
-      crossAxisCount: 4,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisSpacing: 12,
-      mainAxisSpacing: 12,
-      children: actions.map((a) {
-        return GestureDetector(
-          onTap: () {},
-          child: Container(
-            decoration: BoxDecoration(
-              color: (a['color'] as Color).withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: (a['color'] as Color).withValues(alpha: 0.2)),
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(a['icon'] as IconData, color: a['color'] as Color, size: 28),
-                const SizedBox(height: 8),
-                Text(a['label'] as String,
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: a['color'] as Color),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
-          ),
-        );
-      }).toList(),
-=======
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -354,7 +316,6 @@ class _AlertsCard extends StatelessWidget {
           type:    AlertType.info,
         ),
       ]),
->>>>>>> 2077d3f97f38c256ddf48e9491d67a18af7d6f87
     );
   }
 }

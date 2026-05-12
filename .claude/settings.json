@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dart analyze *)",
+      "Bash(grep -rl *)",
+      "Bash(findstr \":8000 :3000\")",
+      "Bash(cmd /c \"taskkill /PID 16232 /PID 10800 /PID 13416 /F\")",
+      "Bash(cmd /c \"taskkill /F /PID 16232\")",
+      "Bash(cmd /c \"taskkill /F /PID 10800\")",
+      "Bash(cmd /c \"taskkill /F /PID 13416\")",
+      "Bash(cmd /c \"taskkill /F /IM python.exe /T\")",
+      "Bash(cmd /c \"taskkill /F /IM python3.exe /T\")",
+      "Bash(findstr \"LISTEN\")",
+      "Bash(findstr \":8000\\\\|:3000\")",
+      "Bash(cmd /c \"taskkill /F /PID 18460 /PID 16232 /PID 10800\")"
+    ]
+  }
+}

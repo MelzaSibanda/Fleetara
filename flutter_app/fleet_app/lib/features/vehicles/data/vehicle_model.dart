@@ -1,7 +1,3 @@
-<<<<<<< HEAD
-=======
-
->>>>>>> 2077d3f97f38c256ddf48e9491d67a18af7d6f87
 class VehicleModel {
   final int     id;
   final String  registrationNumber;
