@@ -33,8 +33,8 @@ final GoRouter appRouter = GoRouter(
     return null;
   },
   routes: [
-    GoRoute(path: '/login',    builder: (_, __) => const LoginPage()),
-    GoRoute(path: '/register', builder: (_, __) => const RegisterPage()),
+    GoRoute(path: '/login',    builder: (_, _) => const LoginPage()),
+    GoRoute(path: '/register', builder: (_, _) => const RegisterPage()),
     GoRoute(
       path: '/dashboard',
       builder: (context, state) {
@@ -48,22 +48,22 @@ final GoRouter appRouter = GoRouter(
         return const LoginPage();
       },
     ),
-    GoRoute(path: '/vehicles',         builder: (_, __) => const VehiclesPage()),
-    GoRoute(path: '/vehicles/add',     builder: (_, __) => const AddVehiclePage()),
-    GoRoute(path: '/trips',            builder: (_, __) => const TripsPage()),
-    GoRoute(path: '/trips/add',        builder: (_, __) => const AddTripPage()),
+    GoRoute(path: '/vehicles',         builder: (_, _) => const VehiclesPage()),
+    GoRoute(path: '/vehicles/add',     builder: (_, _) => const AddVehiclePage()),
+    GoRoute(path: '/trips',            builder: (_, _) => const TripsPage()),
+    GoRoute(path: '/trips/add',        builder: (_, _) => const AddTripPage()),
     GoRoute(
       path: '/trips/:id',
       builder: (_, state) => TripDetailPage(tripId: int.parse(state.pathParameters['id']!)),
     ),
-    GoRoute(path: '/fuel',             builder: (_, __) => const FuelPage()),
-    GoRoute(path: '/fuel/add',         builder: (_, __) => const AddFuelPage()),
-    GoRoute(path: '/invoices',         builder: (_, __) => const InvoicesPage()),
-    GoRoute(path: '/invoices/add',     builder: (_, __) => const AddInvoicePage()),
-    GoRoute(path: '/invoices/summary', builder: (_, __) => const FinancialSummaryPage()),
-    GoRoute(path: '/tyres',            builder: (_, __) => const TyresPage()),
-    GoRoute(path: '/repairs',          builder: (_, __) => const RepairsPage()),
-    GoRoute(path: '/repairs/add',      builder: (_, __) => const AddRepairPage()),
-    GoRoute(path: '/gps/live',         builder: (_, __) => const LiveMapPage()),
+    GoRoute(path: '/fuel',             builder: (_, _) => const FuelPage()),
+    GoRoute(path: '/fuel/add',         builder: (_, _) => const AddFuelPage()),
+    GoRoute(path: '/invoices',         builder: (_, _) => const InvoicesPage()),
+    GoRoute(path: '/invoices/add',     builder: (_, _) => const AddInvoicePage()),
+    GoRoute(path: '/invoices/summary', builder: (_, _) => const FinancialSummaryPage()),
+    GoRoute(path: '/tyres',            builder: (_, _) => const TyresPage()),
+    GoRoute(path: '/repairs',          builder: (_, _) => const RepairsPage()),
+    GoRoute(path: '/repairs/add',      builder: (_, _) => const AddRepairPage()),
+    GoRoute(path: '/gps/live',         builder: (_, _) => const LiveMapPage()),
   ],
 );

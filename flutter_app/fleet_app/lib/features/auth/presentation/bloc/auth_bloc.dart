@@ -1,3 +1,5 @@
+import 'package:dio/dio.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../data/datasources/auth_remote_datasource.dart';
 import 'auth_event.dart';
@@ -25,7 +27,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<AuthLoginRequested>((event, emit) async {
       emit(AuthLoading());
       try {
-        await _dataSource.login(event.username, event.password);
+        await _dataSource.login(event.email, event.password);
         final user = await _dataSource.getMe();
         emit(AuthAuthenticated(user));
       } catch (e) {
@@ -51,8 +53,40 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   }
 
   String _parseError(dynamic e) {
-    if (e.toString().contains('400')) return 'Invalid username or password.';
-    if (e.toString().contains('connection')) return 'Cannot connect to server.';
+    // Firebase Auth errors
+    if (e is FirebaseAuthException) {
+      switch (e.code) {
+        case 'email-already-in-use':    return 'This email is already registered.';
+        case 'invalid-email':           return 'Please enter a valid email address.';
+        case 'weak-password':           return 'Password must be at least 6 characters.';
+        case 'user-not-found':          return 'No account found with this email.';
+        case 'wrong-password':          return 'Incorrect password. Please try again.';
+        case 'invalid-credential':      return 'Invalid email or password.';
+        case 'too-many-requests':       return 'Too many attempts. Please wait and try again.';
+        case 'network-request-failed':  return 'Network error. Check your connection.';
+        case 'operation-not-allowed':
+          return 'Email/password sign-in is not enabled.\nGo to Firebase Console → Authentication → Sign-in method → enable Email/Password.';
+        default: return e.message ?? 'Firebase error: ${e.code}';
+      }
+    }
+    // Django REST errors
+    if (e is DioException && e.response?.data != null) {
+      final data = e.response!.data;
+      if (data is Map) {
+        final msgs = data.entries.expand((entry) {
+          final v     = entry.value;
+          final field = entry.key == 'non_field_errors' ? '' : '${entry.key}: ';
+          if (v is List) return v.map((m) => '$field$m');
+          return ['$field$v'];
+        }).toList();
+        if (msgs.isNotEmpty) return msgs.join('\n');
+      }
+      if (data is String && data.isNotEmpty) return data;
+    }
+    if (e.toString().contains('connection refused') ||
+        e.toString().contains('SocketException')) {
+      return 'Cannot connect to server. Is the backend running?';
+    }
     return 'Something went wrong. Please try again.';
   }
 }

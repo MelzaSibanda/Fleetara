@@ -44,7 +44,11 @@ class _AddFuelPageState extends State<AddFuelPage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
+<<<<<<< HEAD
           SnackBar(content: Text('Error: $e'), backgroundColor: AppTheme.error));
+=======
+        SnackBar(content: Text('Error: $e'), backgroundColor: AppTheme.error))
+>>>>>>> 2077d3f97f38c256ddf48e9491d67a18af7d6f87
       }
     } finally {
       setState(() => _loading = false);

@@ -16,6 +16,8 @@ class _TripsPageState extends State<TripsPage> {
   bool            _loading = true;
   String          _filter  = 'all';
 
+  static const _filters = ['all', 'scheduled', 'in_progress', 'completed', 'cancelled'];
+
   @override
   void initState() { super.initState(); _loadTrips(); }
 
@@ -29,48 +31,84 @@ class _TripsPageState extends State<TripsPage> {
         _trips   = list.map<TripModel>((j) => TripModel.fromJson(j)).toList();
         _loading = false;
       });
-    } catch (_) {
-      setState(() => _loading = false);
-    }
+    } catch (_) { setState(() => _loading = false); }
+  }
+
+  String _filterLabel(String f) {
+    if (f == 'all') return 'All';
+    return f.replaceAll('_', ' ').split(' ')
+        .map((w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1)}')
+        .join(' ');
   }
 
   @override
   Widget build(BuildContext context) {
     return AppShell(
       title: 'Trips',
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.go('/trips/add'),
-        backgroundColor: AppTheme.primary,
-        icon: const Icon(Icons.add, color: Colors.white),
-        label: const Text('New Trip', style: TextStyle(color: Colors.white)),
-      ),
-      child: Column(children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          color: AppTheme.surface,
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(children: [
-              for (final f in ['all', 'scheduled', 'in_progress', 'completed', 'cancelled'])
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: FilterChip(
-                    label: Text(f == 'all' ? 'All' : _capitalize(f)),
-                    selected: _filter == f,
-                    selectedColor: AppTheme.primary.withValues(alpha: 0.15),
-                    checkmarkColor: AppTheme.primary,
-                    onSelected: (_) { setState(() => _filter = f); _loadTrips(); },
-                  ),
-                ),
-            ]),
+      actions: [
+        ElevatedButton.icon(
+          onPressed: () => context.go('/trips/add'),
+          icon: const Icon(Icons.add, size: 16, color: Colors.white),
+          label: const Text('New trip', style: TextStyle(color: Colors.white)),
+          style: ElevatedButton.styleFrom(
+            minimumSize: const Size(0, 32),
+            padding: const EdgeInsets.symmetric(horizontal: 14),
           ),
         ),
+        const SizedBox(width: 8),
+      ],
+      child: Column(children: [
+        // Filter chips
+        Container(
+          color: AppTheme.surface,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(children: _filters.map((f) {
+              final active = _filter == f;
+              return Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: GestureDetector(
+                  onTap: () { setState(() => _filter = f); _loadTrips(); },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: active ? AppTheme.primary.withValues(alpha: 0.18) : AppTheme.background,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: active ? AppTheme.primary.withValues(alpha: 0.4) : AppTheme.border,
+                        width: 0.5,
+                      ),
+                    ),
+                    child: Text(_filterLabel(f),
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: active ? FontWeight.w500 : FontWeight.w400,
+                        color: active ? AppTheme.primary : AppTheme.textMuted,
+                      )),
+                  ),
+                ),
+              );
+            }).toList()),
+          ),
+        ),
+        // List
         Expanded(
           child: _loading
-            ? const Center(child: CircularProgressIndicator())
+            ? const Center(child: CircularProgressIndicator(color: AppTheme.primary, strokeWidth: 2))
             : _trips.isEmpty
-              ? const Center(child: Text('No trips found'))
+              ? EmptyState(
+                  icon: Icons.route_outlined,
+                  title: 'No trips found',
+                  subtitle: 'Trips will appear here once created.',
+                  action: ElevatedButton(
+                    onPressed: () => context.go('/trips/add'),
+                    style: ElevatedButton.styleFrom(minimumSize: const Size(0, 36)),
+                    child: const Text('New trip'),
+                  ),
+                )
               : RefreshIndicator(
+                  color: AppTheme.primary,
                   onRefresh: _loadTrips,
                   child: ListView.builder(
                     padding: const EdgeInsets.all(16),
@@ -85,11 +123,6 @@ class _TripsPageState extends State<TripsPage> {
       ]),
     );
   }
-
-  String _capitalize(String s) =>
-    s.isEmpty ? s : s.replaceAll('_', ' ').split(' ')
-      .map((w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1)}')
-      .join(' ');
 }
 
 class _TripCard extends StatelessWidget {
@@ -99,62 +132,74 @@ class _TripCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
-              Expanded(child: Text(trip.clientName,
-                style: Theme.of(context).textTheme.titleMedium)),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: trip.statusColor.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(trip.statusLabel,
-                  style: TextStyle(fontSize: 12,
-                    color: trip.statusColor, fontWeight: FontWeight.w600)),
-              ),
-            ]),
-            const SizedBox(height: 12),
-            Row(children: [
-              const Icon(Icons.circle, size: 10, color: AppTheme.primary),
-              const SizedBox(width: 8),
-              Expanded(child: Text(trip.origin,
-                style: Theme.of(context).textTheme.bodyMedium)),
-            ]),
-            Padding(
-              padding: const EdgeInsets.only(left: 4),
-              child: Container(width: 2, height: 16,
-                color: AppTheme.border,
-                margin: const EdgeInsets.symmetric(vertical: 2)),
-            ),
-            Row(children: [
-              const Icon(Icons.location_on, size: 14, color: AppTheme.accent),
-              const SizedBox(width: 8),
-              Expanded(child: Text(trip.destination,
-                style: Theme.of(context).textTheme.bodyMedium)),
-            ]),
-            const SizedBox(height: 12),
-            Row(children: [
-              const Icon(Icons.calendar_today, size: 13, color: Colors.grey),
-              const SizedBox(width: 6),
-              Text(trip.scheduledStart.length >= 10
-                ? trip.scheduledStart.substring(0, 10) : trip.scheduledStart,
-                style: const TextStyle(fontSize: 12, color: Colors.grey)),
-              const SizedBox(width: 16),
-              const Icon(Icons.inventory_2_outlined, size: 13, color: Colors.grey),
-              const SizedBox(width: 6),
-              Text(trip.cargoType,
-                style: const TextStyle(fontSize: 12, color: Colors.grey)),
-            ]),
-          ]),
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AppTheme.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppTheme.border, width: 0.5),
         ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Text('#${trip.id}', style: const TextStyle(fontSize: 11, color: AppTheme.textMuted)),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(trip.clientName,
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppTheme.textPrimary))),
+            _StatusPill(status: trip.statusLabel, color: trip.statusColor),
+          ]),
+          const SizedBox(height: 10),
+          Row(children: [
+            Container(width: 8, height: 8,
+              decoration: BoxDecoration(color: AppTheme.primary, shape: BoxShape.circle)),
+            const SizedBox(width: 8),
+            Expanded(child: Text(trip.origin,
+              style: const TextStyle(fontSize: 12, color: AppTheme.textPrimary))),
+          ]),
+          Padding(
+            padding: const EdgeInsets.only(left: 3.5),
+            child: Container(width: 1, height: 12, color: AppTheme.border, margin: const EdgeInsets.symmetric(vertical: 2)),
+          ),
+          Row(children: [
+            const Icon(Icons.location_on, size: 10, color: AppTheme.rose),
+            const SizedBox(width: 8),
+            Expanded(child: Text(trip.destination,
+              style: const TextStyle(fontSize: 12, color: AppTheme.textPrimary))),
+          ]),
+          const SizedBox(height: 10),
+          Row(children: [
+            const Icon(Icons.calendar_today_outlined, size: 12, color: AppTheme.textMuted),
+            const SizedBox(width: 4),
+            Text(
+              trip.scheduledStart.length >= 10 ? trip.scheduledStart.substring(0, 10) : trip.scheduledStart,
+              style: const TextStyle(fontSize: 11, color: AppTheme.textMuted)),
+            const SizedBox(width: 14),
+            const Icon(Icons.inventory_2_outlined, size: 12, color: AppTheme.textMuted),
+            const SizedBox(width: 4),
+            Text(trip.cargoType, style: const TextStyle(fontSize: 11, color: AppTheme.textMuted)),
+          ]),
+        ]),
       ),
     );
   }
+}
+
+class _StatusPill extends StatelessWidget {
+  final String status;
+  final Color  color;
+  const _StatusPill({required this.status, required this.color});
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: 0.12),
+      borderRadius: BorderRadius.circular(20),
+    ),
+    child: Text(status,
+      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w500, color: color)),
+  );
 }

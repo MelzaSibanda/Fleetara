@@ -47,7 +47,7 @@ class _AddInvoicePageState extends State<AddInvoicePage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: AppTheme.error));
+        SnackBar(content: Text('Error: $e'), backgroundColor: AppTheme.error));
       }
     } finally {
       setState(() => _loading = false);
