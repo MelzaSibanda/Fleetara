@@ -170,7 +170,7 @@ class _RegisterPageState extends State<RegisterPage> {
                           ),
                         ),
                         validator: (v) =>
-                          v!.length < 6 ? 'Minimum 6 characters' : null,
+                          v!.length < 8 ? 'Minimum 8 characters' : null,
                       ),
                       const SizedBox(height: 14),
                       TextFormField(

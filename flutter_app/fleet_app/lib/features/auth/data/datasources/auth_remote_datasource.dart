@@ -64,6 +64,7 @@ class AuthRemoteDataSource {
     final prefs    = await SharedPreferences.getInstance();
     await prefs.setString('access_token',  data['access']);
     await prefs.setString('refresh_token', data['refresh']);
+    _client.setTokens(data['access'], data['refresh']);
     return data;
   }
 
@@ -86,7 +87,13 @@ class AuthRemoteDataSource {
   }
 
   Future<bool> isLoggedIn() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('access_token') != null;
+    final prefs        = await SharedPreferences.getInstance();
+    final accessToken  = prefs.getString('access_token');
+    final refreshToken = prefs.getString('refresh_token');
+    if (accessToken != null) {
+      _client.setTokens(accessToken, refreshToken ?? '');
+      return true;
+    }
+    return false;
   }
 }

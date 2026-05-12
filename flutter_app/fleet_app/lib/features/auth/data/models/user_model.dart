@@ -9,6 +9,7 @@ class UserModel {
   final String  role;
   final String? profilePhoto;
   final String? licenseNumber;
+  final String? licenseExpiry;
   final bool    isActive;
 
   UserModel({
@@ -22,22 +23,24 @@ class UserModel {
     required this.role,
     this.profilePhoto,
     this.licenseNumber,
+    this.licenseExpiry,
     required this.isActive,
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
     return UserModel(
-      id:            json['id'],
-      username:      json['username']      ?? '',
-      email:         json['email']         ?? '',
-      firstName:     json['first_name']    ?? '',
-      lastName:      json['last_name']     ?? '',
-      fullName:      json['full_name']     ?? '',
-      phone:         json['phone']         ?? '',
-      role:          json['role']          ?? 'driver',
-      profilePhoto:  json['profile_photo'],
-      licenseNumber: json['license_number'],
-      isActive:      json['is_active']     ?? true,
+      id:             json['id'],
+      username:       json['username']       ?? '',
+      email:          json['email']          ?? '',
+      firstName:      json['first_name']     ?? '',
+      lastName:       json['last_name']      ?? '',
+      fullName:       json['full_name']      ?? '',
+      phone:          json['phone']          ?? '',
+      role:           json['role']           ?? 'driver',
+      profilePhoto:   json['profile_photo'],
+      licenseNumber:  json['license_number'],
+      licenseExpiry:  json['license_expiry'],
+      isActive:       json['is_active']      ?? true,
     );
   }
 
