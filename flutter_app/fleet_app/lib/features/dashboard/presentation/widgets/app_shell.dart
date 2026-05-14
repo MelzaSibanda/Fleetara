@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/utils/responsive.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../auth/presentation/bloc/auth_event.dart';
 import '../../../auth/presentation/bloc/auth_state.dart';
@@ -22,10 +23,11 @@ class AppShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final user   = (context.read<AuthBloc>().state as AuthAuthenticated).user;
-    final isWide = MediaQuery.of(context).size.width >= 900;
-    final items  = _navItemsForRole(user.role);
-    final initials = user.firstName.isNotEmpty ? user.firstName[0].toUpperCase() : 'U';
+    final user     = (context.read<AuthBloc>().state as AuthAuthenticated).user;
+    final isDesktop = Responsive.isDesktop(context);
+    final isMobile  = Responsive.isMobile(context);
+    final items     = _navItemsForRole(user.role);
+    final initials  = user.firstName.isNotEmpty ? user.firstName[0].toUpperCase() : 'U';
 
     return Scaffold(
       backgroundColor: AppTheme.background,
@@ -92,14 +94,21 @@ class AppShell extends StatelessWidget {
           const SizedBox(width: 8),
         ],
       ),
-      body: isWide
+      body: isDesktop
           ? Row(children: [
               _Sidebar(items: items),
               const VerticalDivider(width: 0.5, thickness: 0.5, color: AppTheme.border),
-              Expanded(child: child),
+              Expanded(
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 1280),
+                    child: child,
+                  ),
+                ),
+              ),
             ])
           : child,
-      bottomNavigationBar: isWide ? null : _BottomNav(items: items),
+      bottomNavigationBar: isDesktop ? null : _BottomNav(items: items, compact: isMobile),
       floatingActionButton: floatingActionButton,
     );
   }
@@ -203,7 +212,8 @@ class _SidebarItem extends StatelessWidget {
 
 class _BottomNav extends StatelessWidget {
   final List<_NavItem> items;
-  const _BottomNav({required this.items});
+  final bool compact;
+  const _BottomNav({required this.items, this.compact = false});
 
   @override
   Widget build(BuildContext context) {
@@ -225,9 +235,9 @@ class _BottomNav extends StatelessWidget {
         indicatorColor: AppTheme.primary.withValues(alpha: 0.18),
         onDestinationSelected: (i) => context.go(items[i].route),
         destinations: items.map((item) => NavigationDestination(
-          icon: Icon(item.icon, color: AppTheme.textMuted, size: 20),
-          selectedIcon: Icon(item.icon, color: AppTheme.primary, size: 20),
-          label: item.label,
+          icon: Icon(item.icon, color: AppTheme.textMuted, size: compact ? 22 : 20),
+          selectedIcon: Icon(item.icon, color: AppTheme.primary, size: compact ? 22 : 20),
+          label: compact ? '' : item.label,
         )).toList(),
       ),
     );

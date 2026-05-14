@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/service_locator.dart';
 import '../../../../core/network/api_client.dart';
+import '../../../../core/utils/responsive.dart';
 
 class AddVehiclePage extends StatefulWidget {
   const AddVehiclePage({super.key});
@@ -59,7 +60,7 @@ class _AddVehiclePageState extends State<AddVehiclePage> {
     return Scaffold(
       appBar: AppBar(title: const Text('Add Vehicle')),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+        padding: Responsive.pagePadding(context),
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 600),
           child: Form(

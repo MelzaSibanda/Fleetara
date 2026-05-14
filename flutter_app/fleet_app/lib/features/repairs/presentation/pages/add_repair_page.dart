@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/service_locator.dart';
 import '../../../../core/network/api_client.dart';
+import '../../../../core/utils/responsive.dart';
 
 class AddRepairPage extends StatefulWidget {
   const AddRepairPage({super.key});
@@ -56,7 +57,7 @@ class _AddRepairPageState extends State<AddRepairPage> {
     return Scaffold(
       appBar: AppBar(title: const Text('Report Repair / Breakdown')),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+        padding: Responsive.pagePadding(context),
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 600),
           child: Form(

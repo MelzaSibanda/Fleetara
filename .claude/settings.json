@@ -13,7 +13,9 @@
       "Bash(findstr \"LISTEN\")",
       "Bash(findstr \":8000\\\\|:3000\")",
       "Bash(cmd /c \"taskkill /F /PID 18460 /PID 16232 /PID 10800\")",
-      "Bash(python manage.py makemigrations daily_checks)"
+      "Bash(python manage.py makemigrations daily_checks)",
+      "Bash(until grep *)",
+      "Read(//c/Users/nkund/AppData/Local/Temp/claude/c--Users-nkund-OneDrive-Documents/GitHub/Fleetara/flutter_app/**)"
     ]
   }
 }

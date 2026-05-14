@@ -4,6 +4,7 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/service_locator.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../dashboard/presentation/widgets/app_shell.dart';
+import '../../../../core/utils/responsive.dart';
 
 class RepairsPage extends StatefulWidget {
   const RepairsPage({super.key});
@@ -120,7 +121,7 @@ class _RepairsPageState extends State<RepairsPage> {
                   color: AppTheme.primary,
                   onRefresh: _load,
                   child: ListView.builder(
-                    padding: const EdgeInsets.all(16),
+                    padding: Responsive.pagePadding(context),
                     itemCount: _repairs.length,
                     itemBuilder: (_, i) {
                       final r = _repairs[i];

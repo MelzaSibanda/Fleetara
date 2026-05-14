@@ -4,6 +4,7 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/service_locator.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../dashboard/presentation/widgets/app_shell.dart';
+import '../../../../core/utils/responsive.dart';
 
 class InvoicesPage extends StatefulWidget {
   const InvoicesPage({super.key});

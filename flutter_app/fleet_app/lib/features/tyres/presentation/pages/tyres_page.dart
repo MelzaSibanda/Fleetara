@@ -3,6 +3,7 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/service_locator.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../dashboard/presentation/widgets/app_shell.dart';
+import '../../../../core/utils/responsive.dart';
 
 class TyresPage extends StatefulWidget {
   const TyresPage({super.key});
@@ -44,7 +45,7 @@ class _TyresPageState extends State<TyresPage> {
             child: _tyres.isEmpty
               ? const Center(child: Text('No tyres recorded'))
               : ListView.builder(
-                  padding: const EdgeInsets.all(16),
+                  padding: Responsive.pagePadding(context),
                   itemCount: _tyres.length,
                   itemBuilder: (_, i) {
                     final t    = _tyres[i];

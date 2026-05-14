@@ -4,6 +4,7 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/service_locator.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../dashboard/presentation/widgets/app_shell.dart';
+import '../../../../core/utils/responsive.dart';
 
 class FuelPage extends StatefulWidget {
   const FuelPage({super.key});
@@ -53,15 +54,15 @@ class _FuelPageState extends State<FuelPage> {
         : RefreshIndicator(
             color: AppTheme.primary,
             onRefresh: _load,
-            child: ListView(padding: const EdgeInsets.all(16), children: [
+            child: ListView(padding: Responsive.pagePadding(context), children: [
               // 4 KPI cards
               GridView.count(
-                crossAxisCount: 2,
+                crossAxisCount: Responsive.isDesktop(context) ? 4 : 2,
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 crossAxisSpacing: 12,
                 mainAxisSpacing: 12,
-                childAspectRatio: 1.6,
+                childAspectRatio: Responsive.isDesktop(context) ? 1.4 : 1.6,
                 children: [
                   _KpiCard(
                     label: 'Total litres',

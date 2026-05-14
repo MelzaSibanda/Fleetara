@@ -4,6 +4,7 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/service_locator.dart';
 import '../../../../core/network/api_client.dart';
 import '../../data/trip_model.dart';
+import '../../../../core/utils/responsive.dart';
 
 class TripDetailPage extends StatefulWidget {
   final int tripId;
@@ -53,11 +54,11 @@ class _TripDetailPageState extends State<TripDetailPage> {
         : _trip == null
           ? const Center(child: Text('Trip not found'))
           : SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
+              padding: Responsive.pagePadding(context),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.all(16),
+                  padding: Responsive.pagePadding(context),
                   decoration: BoxDecoration(
                     color: _trip!.statusColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),

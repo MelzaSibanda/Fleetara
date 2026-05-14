@@ -5,6 +5,7 @@ import '../../../../core/utils/service_locator.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../dashboard/presentation/widgets/app_shell.dart';
 import '../../data/trip_model.dart';
+import '../../../../core/utils/responsive.dart';
 
 class TripsPage extends StatefulWidget {
   const TripsPage({super.key});
@@ -111,7 +112,7 @@ class _TripsPageState extends State<TripsPage> {
                   color: AppTheme.primary,
                   onRefresh: _loadTrips,
                   child: ListView.builder(
-                    padding: const EdgeInsets.all(16),
+                    padding: Responsive.pagePadding(context),
                     itemCount: _trips.length,
                     itemBuilder: (_, i) => _TripCard(
                       trip: _trips[i],

@@ -5,6 +5,7 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../dashboard/presentation/widgets/app_shell.dart';
 import '../bloc/vehicle_bloc.dart';
 import '../../data/vehicle_model.dart';
+import '../../../../core/utils/responsive.dart';
 
 class VehiclesPage extends StatelessWidget {
   const VehiclesPage({super.key});
@@ -85,7 +86,7 @@ class _VehicleList extends StatelessWidget {
       );
     }
     return ListView.builder(
-      padding: const EdgeInsets.all(16),
+      padding: Responsive.pagePadding(context),
       itemCount: vehicles.length,
       itemBuilder: (_, i) => _VehicleCard(vehicle: vehicles[i]),
     );

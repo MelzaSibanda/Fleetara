@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/utils/responsive.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../auth/presentation/bloc/auth_event.dart';
 import '../../../auth/presentation/bloc/auth_state.dart';
@@ -79,101 +80,163 @@ class OwnerDashboardPage extends StatelessWidget {
           const SizedBox(width: 8),
         ],
       ),
-      body: Row(children: [
-        // Sidebar
-        Container(
-          width: 200,
-          color: AppTheme.surface,
-          child: Column(children: [
-            const SizedBox(height: 8),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                children: [
-                  _SidebarItem(icon: Icons.home_outlined,         label: 'Home',    route: '/dashboard', active: true),
-                  _SidebarItem(icon: Icons.local_shipping_outlined,label: 'Fleet',   route: '/vehicles'),
-                  _SidebarItem(icon: Icons.route_outlined,         label: 'Trips',   route: '/trips'),
-                  _SidebarItem(icon: Icons.local_gas_station,      label: 'Fuel',    route: '/fuel'),
-                  _SidebarItem(icon: Icons.receipt_long_outlined,  label: 'Finance', route: '/invoices'),
-                  _SidebarItem(icon: Icons.map_outlined,           label: 'GPS',     route: '/gps/live'),
-                ],
-              ),
-            ),
-            const Divider(height: 0.5, thickness: 0.5, color: AppTheme.border),
-            Padding(
-              padding: const EdgeInsets.all(8),
-              child: _SidebarItem(icon: Icons.settings_outlined, label: 'Settings', route: '/settings'),
-            ),
-          ]),
-        ),
-        const VerticalDivider(width: 0.5, thickness: 0.5, color: AppTheme.border),
-        // Content
-        Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              // Greeting row
-              Row(children: [
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('$greeting, ${user.firstName}',
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: AppTheme.textPrimary)),
-                  const SizedBox(height: 2),
-                  Row(children: [
-                    Text(dateStr, style: const TextStyle(fontSize: 12, color: AppTheme.textMuted)),
-                    const SizedBox(width: 10),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: AppTheme.emerald.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(20),
+      body: Builder(builder: (context) {
+        final isDesktop = Responsive.isDesktop(context);
+        final isMobile  = Responsive.isMobile(context);
+        final cols      = Responsive.kpiColumns(context);
+        final padding   = isMobile ? 16.0 : 24.0;
+
+        final content = SingleChildScrollView(
+          padding: EdgeInsets.all(padding),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1280),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                // Greeting row
+                Row(children: [
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('$greeting, ${user.firstName}',
+                      style: TextStyle(
+                        fontSize: isMobile ? 14 : 16,
+                        fontWeight: FontWeight.w500,
+                        color: AppTheme.textPrimary)),
+                    const SizedBox(height: 2),
+                    Wrap(spacing: 10, children: [
+                      Text(dateStr, style: const TextStyle(fontSize: 12, color: AppTheme.textMuted)),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppTheme.emerald.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Text('Fleet operational',
+                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w500, color: AppTheme.emerald)),
                       ),
-                      child: const Text('Fleet operational',
-                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w500, color: AppTheme.emerald)),
+                    ]),
+                  ])),
+                  const SizedBox(width: 12),
+                  ElevatedButton.icon(
+                    onPressed: () => context.go('/trips/add'),
+                    icon: const Icon(Icons.add, size: 16),
+                    label: Text(isMobile ? 'New' : 'New trip'),
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size(0, 36),
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
                     ),
-                  ]),
-                ])),
-                ElevatedButton.icon(
-                  onPressed: () => context.go('/trips/add'),
-                  icon: const Icon(Icons.add, size: 16),
-                  label: const Text('New trip'),
-                  style: ElevatedButton.styleFrom(
-                    minimumSize: const Size(0, 36),
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
                   ),
+                ]),
+                const SizedBox(height: 20),
+                // KPI grid — responsive columns
+                GridView.count(
+                  crossAxisCount: cols,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  crossAxisSpacing: 12,
+                  mainAxisSpacing: 12,
+                  childAspectRatio: isMobile ? 1.4 : 1.1,
+                  children: const [
+                    StatCard(label: 'Active trips',    value: '—', icon: Icons.route,               color: AppTheme.primary,  sparkValues: [0.3,0.5,0.4,0.7,0.5,0.8,1.0]),
+                    StatCard(label: 'Vehicles active', value: '—', icon: Icons.local_shipping,       color: AppTheme.darkNavy, sparkValues: [0.6,0.5,0.7,0.6,0.8,0.7,1.0]),
+                    StatCard(label: 'Revenue (MTD)',   value: '—', icon: Icons.attach_money,         color: AppTheme.emerald,  sparkValues: [0.4,0.6,0.5,0.7,0.6,0.9,1.0]),
+                    StatCard(label: 'Alerts',          value: '—', icon: Icons.warning_amber_rounded, color: AppTheme.amber,   sparkValues: [0.8,0.6,0.9,0.5,0.7,0.4,1.0]),
+                  ],
                 ),
+                const SizedBox(height: 20),
+                // Fleet health + Alerts — side by side on tablet+, stacked on mobile
+                isMobile
+                  ? Column(children: [
+                      _FleetHealthCard(),
+                      const SizedBox(height: 16),
+                      _AlertsCard(),
+                    ])
+                  : Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Expanded(child: _FleetHealthCard()),
+                      const SizedBox(width: 16),
+                      Expanded(child: _AlertsCard()),
+                    ]),
               ]),
-              const SizedBox(height: 24),
-              // KPI 2x2 grid
-              GridView.count(
-                crossAxisCount: 4,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-                childAspectRatio: 1.1,
-                children: const [
-                  StatCard(label: 'Active trips',     value: '—', icon: Icons.route,              color: AppTheme.primary,  sparkValues: [0.3,0.5,0.4,0.7,0.5,0.8,1.0]),
-                  StatCard(label: 'Vehicles active',  value: '—', icon: Icons.local_shipping,      color: AppTheme.darkNavy, sparkValues: [0.6,0.5,0.7,0.6,0.8,0.7,1.0]),
-                  StatCard(label: 'Revenue (MTD)',    value: '—', icon: Icons.attach_money,        color: AppTheme.emerald,  sparkValues: [0.4,0.6,0.5,0.7,0.6,0.9,1.0]),
-                  StatCard(label: 'Alerts',           value: '—', icon: Icons.warning_amber_rounded,color: AppTheme.amber,   sparkValues: [0.8,0.6,0.9,0.5,0.7,0.4,1.0]),
-                ],
-              ),
-              const SizedBox(height: 24),
-              // Fleet health + Alerts row
-              Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Expanded(child: _FleetHealthCard()),
-                const SizedBox(width: 16),
-                Expanded(child: _AlertsCard()),
-              ]),
-            ]),
+            ),
           ),
-        ),
-      ]),
+        );
+
+        return isDesktop
+          ? Row(children: [
+              Container(
+                width: 200,
+                color: AppTheme.surface,
+                child: Column(children: [
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: ListView(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      children: [
+                        _SidebarItem(icon: Icons.home_outlined,          label: 'Home',    route: '/dashboard', active: true),
+                        _SidebarItem(icon: Icons.local_shipping_outlined, label: 'Fleet',   route: '/vehicles'),
+                        _SidebarItem(icon: Icons.route_outlined,          label: 'Trips',   route: '/trips'),
+                        _SidebarItem(icon: Icons.local_gas_station,       label: 'Fuel',    route: '/fuel'),
+                        _SidebarItem(icon: Icons.receipt_long_outlined,   label: 'Finance', route: '/invoices'),
+                        _SidebarItem(icon: Icons.map_outlined,            label: 'GPS',     route: '/gps/live'),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 0.5, thickness: 0.5, color: AppTheme.border),
+                  Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: _SidebarItem(icon: Icons.settings_outlined, label: 'Settings', route: '/settings'),
+                  ),
+                ]),
+              ),
+              const VerticalDivider(width: 0.5, thickness: 0.5, color: AppTheme.border),
+              Expanded(child: content),
+            ])
+          : content;
+      }),
+      bottomNavigationBar: Builder(builder: (context) {
+        if (Responsive.isDesktop(context)) return const SizedBox.shrink();
+        final isMobile = Responsive.isMobile(context);
+        final location = GoRouterState.of(context).matchedLocation;
+        final navItems = [
+          const _OwnerNavItem('/dashboard', Icons.home_outlined,          'Home'),
+          const _OwnerNavItem('/vehicles',  Icons.local_shipping_outlined,'Fleet'),
+          const _OwnerNavItem('/trips',     Icons.route_outlined,         'Trips'),
+          const _OwnerNavItem('/fuel',      Icons.local_gas_station,      'Fuel'),
+          const _OwnerNavItem('/invoices',  Icons.receipt_long_outlined,  'Finance'),
+        ];
+        int selected = 0;
+        for (int i = 0; i < navItems.length; i++) {
+          if (location.startsWith(navItems[i].route)) { selected = i; break; }
+        }
+        return Container(
+          decoration: const BoxDecoration(
+            color: AppTheme.surface,
+            border: Border(top: BorderSide(color: AppTheme.border, width: 0.5)),
+          ),
+          child: NavigationBar(
+            selectedIndex: selected,
+            backgroundColor: AppTheme.surface,
+            elevation: 0,
+            indicatorColor: AppTheme.primary.withValues(alpha: 0.18),
+            onDestinationSelected: (i) => context.go(navItems[i].route),
+            destinations: navItems.map((item) => NavigationDestination(
+              icon: Icon(item.icon, color: AppTheme.textMuted, size: 20),
+              selectedIcon: Icon(item.icon, color: AppTheme.primary, size: 20),
+              label: isMobile ? '' : item.label,
+            )).toList(),
+          ),
+        );
+      }),
     );
   }
 
   String _weekday(int d) => ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][d - 1];
   String _month(int m)   => ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][m - 1];
+}
+
+class _OwnerNavItem {
+  final String   route;
+  final IconData icon;
+  final String   label;
+  const _OwnerNavItem(this.route, this.icon, this.label);
 }
 
 class _SidebarItem extends StatelessWidget {

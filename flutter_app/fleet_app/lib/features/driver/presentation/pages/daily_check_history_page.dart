@@ -8,6 +8,7 @@ import '../bloc/inspection_event.dart';
 import '../bloc/inspection_state.dart';
 import '../../data/models/daily_check_model.dart';
 import '../../../dashboard/presentation/widgets/app_shell.dart';
+import '../../../../../core/utils/responsive.dart';
 
 class DailyCheckHistoryPage extends StatelessWidget {
   const DailyCheckHistoryPage({super.key});
@@ -54,7 +55,7 @@ class DailyCheckHistoryPage extends StatelessWidget {
                   context.read<InspectionBloc>().add(InspectionHistoryRequested());
                 },
                 child: ListView.builder(
-                  padding: const EdgeInsets.all(16),
+                  padding: Responsive.pagePadding(context),
                   itemCount: state.checks.length,
                   itemBuilder: (_, i) => _CheckCard(check: state.checks[i]),
                 ),

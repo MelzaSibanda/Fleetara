@@ -7,6 +7,7 @@ import '../bloc/inspection_bloc.dart';
 import '../bloc/inspection_event.dart';
 import '../bloc/inspection_state.dart';
 import '../../../dashboard/presentation/widgets/app_shell.dart';
+import '../../../../../core/utils/responsive.dart';
 
 class DailyCheckFormPage extends StatefulWidget {
   const DailyCheckFormPage({super.key});
@@ -128,7 +129,7 @@ class _DailyCheckFormPageState extends State<DailyCheckFormPage> {
           return AppShell(
             title: 'Daily Inspection',
             child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
+              padding: Responsive.pagePadding(context),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 // Vehicle IDs
                 Row(children: [

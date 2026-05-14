@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/utils/responsive.dart';
 import '../../../../core/utils/service_locator.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../auth/presentation/bloc/auth_state.dart';
@@ -32,7 +33,7 @@ class DriverDashboardPage extends StatelessWidget {
               onRefresh: () async =>
                 context.read<DriverHomeBloc>().add(DriverHomeFetchRequested()),
               child: ListView(
-                padding: const EdgeInsets.all(16),
+                padding: Responsive.pagePadding(context),
                 children: [
                   // Greeting
                   Text('Hello, ${user.firstName}',

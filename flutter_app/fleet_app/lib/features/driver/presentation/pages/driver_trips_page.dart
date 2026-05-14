@@ -5,6 +5,7 @@ import '../../../../core/utils/service_locator.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../dashboard/presentation/widgets/app_shell.dart';
 import '../../../trips/data/trip_model.dart';
+import '../../../../../core/utils/responsive.dart';
 
 class DriverTripsPage extends StatefulWidget {
   const DriverTripsPage({super.key});
@@ -101,7 +102,7 @@ class _DriverTripsPageState extends State<DriverTripsPage> {
                   color: AppTheme.primary,
                   onRefresh: _loadTrips,
                   child: ListView.builder(
-                    padding: const EdgeInsets.all(16),
+                    padding: Responsive.pagePadding(context),
                     itemCount: _trips.length,
                     itemBuilder: (_, i) => _DriverTripCard(
                       trip: _trips[i],
