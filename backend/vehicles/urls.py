@@ -7,4 +7,5 @@ urlpatterns = [
     path('trailers/',          views.TrailerListCreateView.as_view(), name='trailer_list'),
     path('trailers/<int:pk>/', views.TrailerDetailView.as_view(),     name='trailer_detail'),
     path('alerts/',            views.VehicleAlertsView.as_view(),     name='vehicle_alerts'),
+    path('driver/',            views.DriverVehiclesView.as_view(),    name='driver_vehicles'),
 ]

@@ -1,6 +1,9 @@
 import 'package:get_it/get_it.dart';
 import '../../features/auth/data/datasources/auth_remote_datasource.dart';
 import '../../features/auth/presentation/bloc/auth_bloc.dart';
+import '../../features/driver/data/datasources/driver_datasource.dart';
+import '../../features/driver/presentation/bloc/driver_home_bloc.dart';
+import '../../features/driver/presentation/bloc/inspection_bloc.dart';
 import '../../features/vehicles/presentation/bloc/vehicle_bloc.dart';
 import '../network/api_client.dart';
 
@@ -16,6 +19,17 @@ void setupServiceLocator() {
   );
   sl.registerFactory<AuthBloc>(
     () => AuthBloc(sl<AuthRemoteDataSource>()),
+  );
+
+  // Driver
+  sl.registerLazySingleton<DriverDataSource>(
+    () => DriverDataSource(sl<ApiClient>()),
+  );
+  sl.registerFactory<DriverHomeBloc>(
+    () => DriverHomeBloc(sl<DriverDataSource>()),
+  );
+  sl.registerFactory<InspectionBloc>(
+    () => InspectionBloc(sl<DriverDataSource>()),
   );
 
   // Vehicles

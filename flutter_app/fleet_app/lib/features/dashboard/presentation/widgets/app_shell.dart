@@ -107,10 +107,11 @@ class AppShell extends StatelessWidget {
   List<_NavItem> _navItemsForRole(String role) {
     if (role == 'driver') {
       return [
-        _NavItem('/dashboard', Icons.home_outlined,        'Home'),
-        _NavItem('/trips',     Icons.route_outlined,        'Trips'),
-        _NavItem('/fuel',      Icons.local_gas_station,     'Fuel'),
-        _NavItem('/repairs',   Icons.build_outlined,        'Issues'),
+        _NavItem('/dashboard',     Icons.home_outlined,         'Home'),
+        _NavItem('/driver/trips',  Icons.route_outlined,         'Trips'),
+        _NavItem('/driver/checks', Icons.checklist_outlined,     'Checks'),
+        _NavItem('/fuel',          Icons.local_gas_station,      'Fuel'),
+        _NavItem('/repairs',       Icons.build_outlined,         'Issues'),
       ];
     }
     return [

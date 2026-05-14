@@ -54,6 +54,7 @@ INSTALLED_APPS = [
     'repairs',
     'invoices',
     'gps',
+    'daily_checks',
 ]
 
 MIDDLEWARE = [

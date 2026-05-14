@@ -1,12 +1,14 @@
 from rest_framework import generics, status
 from rest_framework.views    import APIView
 from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
 from django.utils            import timezone
 from datetime                import timedelta
 
 from .models       import Horse, Trailer
 from .serializers  import HorseSerializer, TrailerSerializer
 from utils.permissions import IsFleetManager, IsDriverOrManager
+from trips.models import Trip
 
 
 class HorseListCreateView(generics.ListCreateAPIView):
@@ -75,4 +77,30 @@ class VehicleAlertsView(APIView):
                 'horses':   HorseSerializer(service_due_horses,    many=True).data,
                 'trailers': TrailerSerializer(service_due_trailers, many=True).data,
             }
+        })
+
+
+class DriverVehiclesView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        if user.role not in ('driver', 'owner', 'fleet_manager', 'admin'):
+            return Response({'error': 'Forbidden'}, status=403)
+
+        trip = Trip.objects.filter(
+            driver=user,
+            status__in=['scheduled', 'in_progress'],
+        ).order_by('-scheduled_start').first()
+
+        if not trip:
+            trip = Trip.objects.filter(driver=user).order_by('-created_at').first()
+
+        if not trip:
+            return Response({'horse': None, 'trailer': None, 'trip_id': None})
+
+        return Response({
+            'horse':   HorseSerializer(trip.horse).data,
+            'trailer': TrailerSerializer(trip.trailer).data,
+            'trip_id': trip.id,
         })

@@ -12,7 +12,8 @@
       "Bash(cmd /c \"taskkill /F /IM python3.exe /T\")",
       "Bash(findstr \"LISTEN\")",
       "Bash(findstr \":8000\\\\|:3000\")",
-      "Bash(cmd /c \"taskkill /F /PID 18460 /PID 16232 /PID 10800\")"
+      "Bash(cmd /c \"taskkill /F /PID 18460 /PID 16232 /PID 10800\")",
+      "Bash(python manage.py makemigrations daily_checks)"
     ]
   }
 }

@@ -2,8 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/utils/service_locator.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../auth/presentation/bloc/auth_state.dart';
+import '../../../driver/presentation/bloc/driver_home_bloc.dart';
+import '../../../driver/presentation/bloc/driver_home_event.dart';
+import '../../../driver/presentation/bloc/driver_home_state.dart';
 import '../widgets/app_shell.dart';
 
 class DriverDashboardPage extends StatelessWidget {
@@ -13,143 +17,249 @@ class DriverDashboardPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final user = (context.read<AuthBloc>().state as AuthAuthenticated).user;
 
-    return AppShell(
-      title: 'Fleetara',
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Hello, ${user.firstName}',
-            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: AppTheme.textPrimary)),
-          const SizedBox(height: 16),
+    return BlocProvider(
+      create: (_) => sl<DriverHomeBloc>()..add(DriverHomeFetchRequested()),
+      child: AppShell(
+        title: 'Fleetara',
+        child: BlocBuilder<DriverHomeBloc, DriverHomeState>(
+          builder: (context, state) {
+            final activeTrip = state is DriverHomeLoaded ? state.activeTrip : null;
+            final vehicle    = state is DriverHomeLoaded ? state.vehicle    : null;
+            final loading    = state is DriverHomeLoading;
 
-          // Active trip card — teal bg
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
+            return RefreshIndicator(
               color: AppTheme.primary,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                Container(width: 8, height: 8,
-                  decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle)),
-                const SizedBox(width: 6),
-                const Text('No active trip', style: TextStyle(fontSize: 12, color: Colors.white70)),
-                const Spacer(),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(20),
+              onRefresh: () async =>
+                context.read<DriverHomeBloc>().add(DriverHomeFetchRequested()),
+              child: ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  // Greeting
+                  Text('Hello, ${user.firstName}',
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500,
+                      color: AppTheme.textPrimary)),
+                  const SizedBox(height: 4),
+                  const Text("Here's your operational summary",
+                    style: TextStyle(fontSize: 12, color: AppTheme.textMuted)),
+                  const SizedBox(height: 16),
+
+                  // Active trip card
+                  _ActiveTripCard(trip: activeTrip, loading: loading),
+                  const SizedBox(height: 16),
+
+                  // Vehicle card
+                  if (vehicle != null && vehicle['horse'] != null)
+                    _VehicleCard(vehicle: vehicle),
+                  if (vehicle != null && vehicle['horse'] != null)
+                    const SizedBox(height: 16),
+
+                  // Quick actions
+                  Row(children: [
+                    Expanded(child: _ActionButton(
+                      label: 'My Trips',
+                      color: AppTheme.primary,
+                      icon:  Icons.route_outlined,
+                      onTap: () => context.go('/driver/trips'),
+                    )),
+                    const SizedBox(width: 12),
+                    Expanded(child: _ActionButton(
+                      label: 'Daily Check',
+                      color: AppTheme.emerald,
+                      icon:  Icons.checklist_outlined,
+                      onTap: () => context.go('/driver/checks'),
+                    )),
+                  ]),
+                  const SizedBox(height: 12),
+                  Row(children: [
+                    Expanded(child: _ActionButton(
+                      label: 'Log Fuel',
+                      color: AppTheme.amber,
+                      icon:  Icons.local_gas_station,
+                      onTap: () => context.go('/fuel/add'),
+                    )),
+                    const SizedBox(width: 12),
+                    Expanded(child: _ActionButton(
+                      label: 'Report Issue',
+                      color: AppTheme.rose,
+                      icon:  Icons.warning_amber_rounded,
+                      onTap: () => context.go('/repairs/add'),
+                    )),
+                  ]),
+                  const SizedBox(height: 16),
+
+                  // Today's stats (static for now)
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppTheme.surface,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppTheme.border, width: 0.5),
+                    ),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      const Text("Today's stats",
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500,
+                          color: AppTheme.textPrimary)),
+                      const SizedBox(height: 12),
+                      Row(children: const [
+                        Expanded(child: _StatItem(label: 'Distance',     value: '—')),
+                        Expanded(child: _StatItem(label: 'Fuel',         value: '—')),
+                        Expanded(child: _StatItem(label: 'Drive time',   value: '—')),
+                        Expanded(child: _StatItem(label: 'Safety score', value: '—',
+                          valueColor: AppTheme.emerald)),
+                      ]),
+                    ]),
                   ),
-                  child: const Text('Standby',
-                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w500, color: Colors.white)),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _ActiveTripCard extends StatelessWidget {
+  final Map<String, dynamic>? trip;
+  final bool loading;
+  const _ActiveTripCard({this.trip, required this.loading});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppTheme.primary,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: loading
+        ? const Center(child: SizedBox(height: 18, width: 18,
+            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)))
+        : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Container(width: 8, height: 8,
+                decoration: BoxDecoration(
+                  color: trip != null ? Colors.white : Colors.white54,
+                  shape: BoxShape.circle)),
+              const SizedBox(width: 6),
+              Text(trip != null ? 'Active trip' : 'No active trip',
+                style: const TextStyle(fontSize: 12, color: Colors.white70)),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(20),
                 ),
-              ]),
-              const SizedBox(height: 12),
-              const Text('—  →  —',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: Colors.white)),
-              const SizedBox(height: 4),
-              const Text('No trip assigned yet',
-                style: TextStyle(fontSize: 12, color: Colors.white70)),
+                child: Text(trip != null ? 'In Progress' : 'Standby',
+                  style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w500,
+                    color: Colors.white)),
+              ),
+            ]),
+            const SizedBox(height: 12),
+            Text(
+              trip != null
+                ? '${trip!['origin']} → ${trip!['destination']}'
+                : '—  →  —',
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500,
+                color: Colors.white)),
+            const SizedBox(height: 4),
+            Text(
+              trip != null ? (trip!['client_name'] ?? '') : 'No trip assigned',
+              style: const TextStyle(fontSize: 12, color: Colors.white70)),
+            if (trip != null) ...[
               const SizedBox(height: 12),
               ClipRRect(
                 borderRadius: BorderRadius.circular(3),
                 child: LinearProgressIndicator(
-                  value: 0,
+                  value: trip!['status'] == 'completed' ? 1.0 : 0.5,
                   minHeight: 5,
                   backgroundColor: Colors.white.withValues(alpha: 0.3),
                   color: Colors.white,
                 ),
               ),
               const SizedBox(height: 8),
-              const Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('0% complete', style: TextStyle(fontSize: 11, color: Colors.white70)),
-                  Text('ETA: —',     style: TextStyle(fontSize: 11, color: Colors.white70)),
-                ],
-              ),
-            ]),
-          ),
-          const SizedBox(height: 16),
-
-          // 2-col action grid
-          Row(children: [
-            Expanded(
-              child: _ActionButton(
-                label: 'Complete trip',
-                color: AppTheme.primary,
-                icon:  Icons.check_circle_outline,
-                onTap: () => context.go('/trips'),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _ActionButton(
-                label: 'Log fuel stop',
-                color: AppTheme.amber,
-                icon:  Icons.local_gas_station,
-                onTap: () => context.go('/fuel/add'),
-              ),
-            ),
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                Text('Trip #${trip!['id']}',
+                  style: const TextStyle(fontSize: 11, color: Colors.white70)),
+                Text('Cargo: ${trip!['cargo_type'] ?? '—'}',
+                  style: const TextStyle(fontSize: 11, color: Colors.white70)),
+              ]),
+            ],
           ]),
-          const SizedBox(height: 16),
-
-          // Today's stats
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: AppTheme.surface,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppTheme.border, width: 0.5),
-            ),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text("Today's stats",
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: AppTheme.textPrimary)),
-              const SizedBox(height: 12),
-              Row(children: const [
-                Expanded(child: _StatItem(label: 'Distance',    value: '0 km')),
-                Expanded(child: _StatItem(label: 'Fuel',        value: '0 L')),
-                Expanded(child: _StatItem(label: 'Drive time',  value: '0 h')),
-                Expanded(child: _StatItem(label: 'Driver score',value: '—',  valueColor: AppTheme.emerald)),
-              ]),
-            ]),
-          ),
-          const SizedBox(height: 12),
-
-          // Report breakdown row
-          GestureDetector(
-            onTap: () => context.go('/repairs/add'),
-            child: Container(
-              height: 48,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
-                color: AppTheme.surface,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppTheme.border, width: 0.5),
-              ),
-              child: Row(children: [
-                Container(
-                  width: 32, height: 32,
-                  decoration: BoxDecoration(
-                    color: AppTheme.rose.withValues(alpha: 0.10),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(Icons.warning_amber_rounded, color: AppTheme.rose, size: 16),
-                ),
-                const SizedBox(width: 12),
-                const Expanded(child: Text('Report breakdown',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppTheme.textPrimary))),
-                const Icon(Icons.chevron_right, size: 18, color: AppTheme.textMuted),
-              ]),
-            ),
-          ),
-        ]),
-      ),
     );
   }
+}
+
+class _VehicleCard extends StatelessWidget {
+  final Map<String, dynamic> vehicle;
+  const _VehicleCard({required this.vehicle});
+
+  @override
+  Widget build(BuildContext context) {
+    final horse   = vehicle['horse']   as Map<String, dynamic>? ?? {};
+    final trailer = vehicle['trailer'] as Map<String, dynamic>? ?? {};
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppTheme.border, width: 0.5),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Text('Assigned Vehicle',
+          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500,
+            color: AppTheme.textPrimary)),
+        const SizedBox(height: 12),
+        Row(children: [
+          Expanded(child: _VehicleItem(
+            icon: Icons.local_shipping,
+            label: 'Horse',
+            value: horse['registration_number'] ?? '—',
+            sub: '${horse['make'] ?? ''} ${horse['model'] ?? ''}'.trim(),
+          )),
+          const SizedBox(width: 12),
+          Expanded(child: _VehicleItem(
+            icon: Icons.rv_hookup,
+            label: 'Trailer',
+            value: trailer['registration_number'] ?? '—',
+            sub: trailer['trailer_type'] ?? '—',
+          )),
+        ]),
+      ]),
+    );
+  }
+}
+
+class _VehicleItem extends StatelessWidget {
+  final IconData icon;
+  final String   label;
+  final String   value;
+  final String   sub;
+  const _VehicleItem({required this.icon, required this.label,
+    required this.value, required this.sub});
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(10),
+    decoration: BoxDecoration(
+      color: AppTheme.primary.withValues(alpha: 0.06),
+      borderRadius: BorderRadius.circular(8),
+    ),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Icon(icon, size: 14, color: AppTheme.primary),
+        const SizedBox(width: 4),
+        Text(label, style: const TextStyle(fontSize: 11, color: AppTheme.textMuted)),
+      ]),
+      const SizedBox(height: 4),
+      Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500,
+        color: AppTheme.textPrimary)),
+      Text(sub, style: const TextStyle(fontSize: 11, color: AppTheme.textMuted)),
+    ]),
+  );
 }
 
 class _ActionButton extends StatelessWidget {
@@ -157,38 +267,37 @@ class _ActionButton extends StatelessWidget {
   final Color    color;
   final IconData icon;
   final VoidCallback onTap;
-  const _ActionButton({required this.label, required this.color, required this.icon, required this.onTap});
+  const _ActionButton({required this.label, required this.color,
+    required this.icon, required this.onTap});
 
   @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        height: 48,
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(11),
-        ),
-        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Icon(icon, color: Colors.white, size: 18),
-          const SizedBox(width: 8),
-          Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Colors.white)),
-        ]),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: onTap,
+    child: Container(
+      height: 48,
+      decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(11)),
+      child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+        Icon(icon, color: Colors.white, size: 18),
+        const SizedBox(width: 8),
+        Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500,
+          color: Colors.white)),
+      ]),
+    ),
+  );
 }
 
 class _StatItem extends StatelessWidget {
   final String  label;
   final String  value;
   final Color   valueColor;
-  const _StatItem({required this.label, required this.value, this.valueColor = AppTheme.textPrimary});
+  const _StatItem({required this.label, required this.value,
+    this.valueColor = AppTheme.textPrimary});
 
   @override
   Widget build(BuildContext context) => Column(children: [
-    Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: valueColor)),
+    Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500,
+      color: valueColor)),
     const SizedBox(height: 2),
-    Text(label,  style: const TextStyle(fontSize: 11, color: AppTheme.textMuted)),
+    Text(label, style: const TextStyle(fontSize: 11, color: AppTheme.textMuted)),
   ]);
 }

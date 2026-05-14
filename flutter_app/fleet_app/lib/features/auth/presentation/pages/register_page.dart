@@ -51,7 +51,6 @@ class _RegisterPageState extends State<RegisterPage> {
       backgroundColor: AppTheme.background,
       body: BlocConsumer<AuthBloc, AuthState>(
         listener: (context, state) {
-          if (state is AuthAuthenticated) context.go('/dashboard');
           if (state is AuthError) {
             ScaffoldMessenger.of(context).showSnackBar(SnackBar(
               content: Text(state.message,
