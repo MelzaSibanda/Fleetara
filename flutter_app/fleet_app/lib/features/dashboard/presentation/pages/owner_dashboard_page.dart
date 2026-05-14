@@ -60,15 +60,21 @@ class OwnerDashboardPage extends StatelessWidget {
                 ]),
               ),
               const PopupMenuDivider(),
-              PopupMenuItem(
-                onTap: () => context.read<AuthBloc>().add(AuthLogoutRequested()),
-                child: const Row(children: [
+              const PopupMenuItem(
+                value: 'logout',
+                child: Row(children: [
                   Icon(Icons.logout, size: 16, color: AppTheme.rose),
                   SizedBox(width: 8),
                   Text('Sign out', style: TextStyle(fontSize: 13, color: AppTheme.rose)),
                 ]),
               ),
             ],
+            onSelected: (value) {
+              if (value == 'logout') {
+                context.read<AuthBloc>().add(AuthLogoutRequested());
+                context.go('/login');
+              }
+            },
           ),
           const SizedBox(width: 8),
         ],

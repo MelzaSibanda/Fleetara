@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../auth/presentation/bloc/auth_event.dart';
@@ -18,7 +19,10 @@ class ManagerDashboardPage extends StatelessWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
-            onPressed: () => context.read<AuthBloc>().add(AuthLogoutRequested()),
+            onPressed: () {
+              context.read<AuthBloc>().add(AuthLogoutRequested());
+              context.go('/login');
+            },
           ),
         ],
       ),
