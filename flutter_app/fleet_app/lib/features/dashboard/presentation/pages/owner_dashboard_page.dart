@@ -14,7 +14,9 @@ class OwnerDashboardPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final user = (context.read<AuthBloc>().state as AuthAuthenticated).user;
+    final authState = context.read<AuthBloc>().state;
+    if (authState is! AuthAuthenticated) return const SizedBox.shrink();
+    final user = authState.user;
     final now  = DateTime.now();
     final hour = now.hour;
     final greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';

@@ -29,32 +29,64 @@ class _TripsPageState extends State<TripsPage> {
         queryParameters: _filter != 'all' ? {'status': _filter} : null);
       final list = (res.data['results'] ?? res.data) as List;
       setState(() {
-        _trips   = list.map<TripModel>((j) => TripModel.fromJson(j)).toList();
+        _trips   = list.map((j) => TripModel.fromJson(j)).toList();
         _loading = false;
       });
     } catch (_) { setState(() => _loading = false); }
   }
 
-  String _filterLabel(String f) {
-    if (f == 'all') return 'All';
-    return f.replaceAll('_', ' ').split(' ')
+  Future<void> _deleteTrip(TripModel trip) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        title: const Text('Delete trip',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+        content: Text('Delete trip #${trip.id} to ${trip.destination}?\nThis cannot be undone.',
+          style: const TextStyle(fontSize: 13, color: AppTheme.textMuted)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel', style: TextStyle(color: AppTheme.textMuted))),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.rose, minimumSize: const Size(80, 36)),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await sl<ApiClient>().dio.delete('/trips/${trip.id}/');
+      _loadTrips();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Trip deleted', style: TextStyle(color: Colors.white)),
+          backgroundColor: AppTheme.emerald, behavior: SnackBarBehavior.floating));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Failed to delete: $e', style: const TextStyle(color: Colors.white)),
+          backgroundColor: AppTheme.rose, behavior: SnackBarBehavior.floating));
+      }
+    }
+  }
+
+  String _filterLabel(String f) => f == 'all' ? 'All'
+    : f.replaceAll('_', ' ').split(' ')
         .map((w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1)}')
         .join(' ');
-  }
 
   @override
   Widget build(BuildContext context) {
     return AppShell(
       title: 'Trips',
       actions: [
-        ElevatedButton.icon(
-          onPressed: () => context.go('/trips/add'),
-          icon: const Icon(Icons.add, size: 16, color: Colors.white),
-          label: const Text('New trip', style: TextStyle(color: Colors.white)),
-          style: ElevatedButton.styleFrom(
-            minimumSize: const Size(0, 32),
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-          ),
+        TextButton.icon(
+          onPressed: () async { await context.push('/trips/add'); _loadTrips(); },
+          icon: const Icon(Icons.add, size: 16, color: AppTheme.primary),
+          label: const Text('New trip', style: TextStyle(color: AppTheme.primary, fontSize: 12)),
         ),
         const SizedBox(width: 8),
       ],
@@ -78,22 +110,18 @@ class _TripsPageState extends State<TripsPage> {
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
                         color: active ? AppTheme.primary.withValues(alpha: 0.4) : AppTheme.border,
-                        width: 0.5,
-                      ),
+                        width: 0.5),
                     ),
                     child: Text(_filterLabel(f),
-                      style: TextStyle(
-                        fontSize: 12,
+                      style: TextStyle(fontSize: 12,
                         fontWeight: active ? FontWeight.w500 : FontWeight.w400,
-                        color: active ? AppTheme.primary : AppTheme.textMuted,
-                      )),
+                        color: active ? AppTheme.primary : AppTheme.textMuted)),
                   ),
                 ),
               );
             }).toList()),
           ),
         ),
-        // List
         Expanded(
           child: _loading
             ? const Center(child: CircularProgressIndicator(color: AppTheme.primary, strokeWidth: 2))
@@ -102,10 +130,10 @@ class _TripsPageState extends State<TripsPage> {
                   icon: Icons.route_outlined,
                   title: 'No trips found',
                   subtitle: 'Trips will appear here once created.',
-                  action: ElevatedButton(
+                  action: TextButton.icon(
                     onPressed: () => context.go('/trips/add'),
-                    style: ElevatedButton.styleFrom(minimumSize: const Size(0, 36)),
-                    child: const Text('New trip'),
+                    icon: const Icon(Icons.add, color: AppTheme.primary),
+                    label: const Text('New trip', style: TextStyle(color: AppTheme.primary)),
                   ),
                 )
               : RefreshIndicator(
@@ -116,7 +144,11 @@ class _TripsPageState extends State<TripsPage> {
                     itemCount: _trips.length,
                     itemBuilder: (_, i) => _TripCard(
                       trip: _trips[i],
-                      onTap: () => context.go('/trips/${_trips[i].id}'),
+                      onTap: () async {
+                        await context.push('/trips/${_trips[i].id}');
+                        _loadTrips();
+                      },
+                      onDelete: () => _deleteTrip(_trips[i]),
                     ),
                   ),
                 ),
@@ -129,7 +161,8 @@ class _TripsPageState extends State<TripsPage> {
 class _TripCard extends StatelessWidget {
   final TripModel    trip;
   final VoidCallback onTap;
-  const _TripCard({required this.trip, required this.onTap});
+  final VoidCallback onDelete;
+  const _TripCard({required this.trip, required this.onTap, required this.onDelete});
 
   @override
   Widget build(BuildContext context) {
@@ -144,26 +177,43 @@ class _TripCard extends StatelessWidget {
           border: Border.all(color: AppTheme.border, width: 0.5),
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          // Header
           Row(children: [
             Text('#${trip.id}', style: const TextStyle(fontSize: 11, color: AppTheme.textMuted)),
             const SizedBox(width: 8),
-            Expanded(
-              child: Text(trip.clientName,
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppTheme.textPrimary))),
-            _StatusPill(status: trip.statusLabel, color: trip.statusColor),
+            Expanded(child: Text(trip.clientName,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500,
+                color: AppTheme.textPrimary))),
+            StatusPill(label: trip.statusLabel, color: trip.statusColor),
+            const SizedBox(width: 4),
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert, size: 16, color: AppTheme.textMuted),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              onSelected: (v) {
+                if (v == 'delete') onDelete();
+              },
+              itemBuilder: (_) => [
+                const PopupMenuItem(value: 'delete',
+                  child: Row(children: [
+                    Icon(Icons.delete_outline, size: 16, color: AppTheme.rose),
+                    SizedBox(width: 10),
+                    Text('Delete', style: TextStyle(fontSize: 13, color: AppTheme.rose)),
+                  ])),
+              ],
+            ),
           ]),
           const SizedBox(height: 10),
+          // Route
           Row(children: [
             Container(width: 8, height: 8,
-              decoration: BoxDecoration(color: AppTheme.primary, shape: BoxShape.circle)),
+              decoration: const BoxDecoration(color: AppTheme.primary, shape: BoxShape.circle)),
             const SizedBox(width: 8),
             Expanded(child: Text(trip.origin,
               style: const TextStyle(fontSize: 12, color: AppTheme.textPrimary))),
           ]),
-          Padding(
-            padding: const EdgeInsets.only(left: 3.5),
-            child: Container(width: 1, height: 12, color: AppTheme.border, margin: const EdgeInsets.symmetric(vertical: 2)),
-          ),
+          Padding(padding: const EdgeInsets.only(left: 3.5),
+            child: Container(width: 1, height: 12, color: AppTheme.border,
+              margin: const EdgeInsets.symmetric(vertical: 2))),
           Row(children: [
             const Icon(Icons.location_on, size: 10, color: AppTheme.rose),
             const SizedBox(width: 8),
@@ -171,36 +221,23 @@ class _TripCard extends StatelessWidget {
               style: const TextStyle(fontSize: 12, color: AppTheme.textPrimary))),
           ]),
           const SizedBox(height: 10),
-          Row(children: [
-            const Icon(Icons.calendar_today_outlined, size: 12, color: AppTheme.textMuted),
-            const SizedBox(width: 4),
-            Text(
-              trip.scheduledStart.length >= 10 ? trip.scheduledStart.substring(0, 10) : trip.scheduledStart,
-              style: const TextStyle(fontSize: 11, color: AppTheme.textMuted)),
-            const SizedBox(width: 14),
-            const Icon(Icons.inventory_2_outlined, size: 12, color: AppTheme.textMuted),
-            const SizedBox(width: 4),
-            Text(trip.cargoType, style: const TextStyle(fontSize: 11, color: AppTheme.textMuted)),
+          const Divider(height: 1, thickness: 0.5, color: AppTheme.border),
+          const SizedBox(height: 8),
+          // Meta row
+          Wrap(spacing: 14, runSpacing: 4, children: [
+            _meta(Icons.calendar_today_outlined, trip.formattedDate),
+            if (trip.driverName.isNotEmpty) _meta(Icons.person_outline, trip.driverName),
+            if (trip.horseReg.isNotEmpty)   _meta(Icons.local_shipping_outlined, trip.horseReg),
+            _meta(Icons.inventory_2_outlined, trip.cargoType),
           ]),
         ]),
       ),
     );
   }
-}
 
-class _StatusPill extends StatelessWidget {
-  final String status;
-  final Color  color;
-  const _StatusPill({required this.status, required this.color});
-
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
-    decoration: BoxDecoration(
-      color: color.withValues(alpha: 0.12),
-      borderRadius: BorderRadius.circular(20),
-    ),
-    child: Text(status,
-      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w500, color: color)),
-  );
+  Widget _meta(IconData icon, String text) => Row(mainAxisSize: MainAxisSize.min, children: [
+    Icon(icon, size: 12, color: AppTheme.textMuted),
+    const SizedBox(width: 4),
+    Text(text, style: const TextStyle(fontSize: 11, color: AppTheme.textMuted)),
+  ]);
 }

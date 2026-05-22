@@ -1,0 +1,363 @@
+import 'package:flutter/material.dart';
+import '../../../../core/theme/app_theme.dart';
+import '../../../../core/utils/service_locator.dart';
+import '../../../../core/network/api_client.dart';
+
+class TyreFormPage extends StatefulWidget {
+  final Map? tyre; // null = create, non-null = edit
+  const TyreFormPage({super.key, this.tyre});
+
+  @override
+  State<TyreFormPage> createState() => _TyreFormPageState();
+}
+
+class _TyreFormPageState extends State<TyreFormPage> {
+  final _formKey = GlobalKey<FormState>();
+  bool  _loading  = false;
+  bool  _fetching = true;
+
+  List<Map<String, dynamic>> _horses   = [];
+  List<Map<String, dynamic>> _trailers = [];
+
+  String _vehicleType  = 'horse';
+  int?   _selectedHorse;
+  int?   _selectedTrailer;
+  String _position  = 'steer_left';
+  String _condition = 'good';
+
+  late TextEditingController _brandCtrl;
+  late TextEditingController _sizeCtrl;
+  late TextEditingController _serialCtrl;
+  late TextEditingController _installedCtrl;
+  late TextEditingController _lifespanCtrl;
+  late TextEditingController _notesCtrl;
+
+  bool get _isEdit => widget.tyre != null;
+
+  static const _positions = [
+    'steer_left', 'steer_right',
+    'drive_left_outer', 'drive_left_inner',
+    'drive_right_outer', 'drive_right_inner',
+    'trailer_1', 'trailer_2', 'trailer_3', 'spare',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    final t = widget.tyre;
+    _vehicleType     = t?['vehicle_type'] ?? 'horse';
+    _position        = t?['position']     ?? 'steer_left';
+    _condition       = t?['condition']    ?? 'good';
+    _selectedHorse   = t?['horse']   is Map ? t!['horse']['id']   : t?['horse'];
+    _selectedTrailer = t?['trailer'] is Map ? t!['trailer']['id'] : t?['trailer'];
+
+    _brandCtrl     = TextEditingController(text: t?['brand']          ?? '');
+    _sizeCtrl      = TextEditingController(text: t?['size']           ?? '');
+    _serialCtrl    = TextEditingController(text: t?['serial_number']  ?? '');
+    _installedCtrl = TextEditingController(text: '${t?['installed_km'] ?? ''}');
+    _lifespanCtrl  = TextEditingController(text: '${t?['km_lifespan'] ?? 120000}');
+    _notesCtrl     = TextEditingController(text: t?['notes']          ?? '');
+
+    _fetchVehicles();
+  }
+
+  @override
+  void dispose() {
+    _brandCtrl.dispose();  _sizeCtrl.dispose();    _serialCtrl.dispose();
+    _installedCtrl.dispose(); _lifespanCtrl.dispose(); _notesCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _fetchVehicles() async {
+    setState(() => _fetching = true);
+    try {
+      final client  = sl<ApiClient>();
+      final results = await Future.wait([
+        client.dio.get('/vehicles/horses/'),
+        client.dio.get('/vehicles/trailers/'),
+      ]);
+      final horseList   = (results[0].data['results'] ?? results[0].data) as List;
+      final trailerList = (results[1].data['results'] ?? results[1].data) as List;
+      setState(() {
+        _horses   = horseList.map<Map<String, dynamic>>((h) => {
+          'id':    h['id'],
+          'label': '${h['registration_number']} — ${h['make']} ${h['model']}',
+        }).toList();
+        _trailers = trailerList.map<Map<String, dynamic>>((t) => {
+          'id':    t['id'],
+          'label': '${t['registration_number']} (${t['trailer_type'] ?? 'trailer'})',
+        }).toList();
+        _fetching = false;
+      });
+    } catch (e) {
+      setState(() => _fetching = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Could not load vehicles: $e',
+            style: const TextStyle(color: Colors.white)),
+          backgroundColor: AppTheme.rose, behavior: SnackBarBehavior.floating));
+      }
+    }
+  }
+
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _loading = true);
+    try {
+      final body = <String, dynamic>{
+        'vehicle_type':  _vehicleType,
+        'position':      _position,
+        'condition':     _condition,
+        'brand':         _brandCtrl.text.trim(),
+        'size':          _sizeCtrl.text.trim(),
+        'serial_number': _serialCtrl.text.trim(),
+        'installed_km':  int.parse(_installedCtrl.text),
+        'km_lifespan':   int.parse(_lifespanCtrl.text),
+        'notes':         _notesCtrl.text.trim(),
+      };
+      if (_vehicleType == 'horse')   body['horse']   = _selectedHorse;
+      if (_vehicleType == 'trailer') body['trailer'] = _selectedTrailer;
+
+      if (_isEdit) {
+        await sl<ApiClient>().dio.patch('/tyres/${widget.tyre!['id']}/', data: body);
+      } else {
+        await sl<ApiClient>().dio.post('/tyres/', data: body);
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(_isEdit ? 'Tyre updated' : 'Tyre added',
+            style: const TextStyle(color: Colors.white)),
+          backgroundColor: AppTheme.emerald, behavior: SnackBarBehavior.floating));
+        Navigator.pop(context, true); // return true = needs refresh
+      }
+    } catch (e) {
+      if (mounted) {
+        String msg = e.toString();
+        try {
+          final data = (e as dynamic).response?.data;
+          if (data is Map) {
+            msg = data.entries.map((en) {
+              final v = en.value;
+              return '${en.key}: ${v is List ? v.join(', ') : v}';
+            }).join('\n');
+          }
+        } catch (_) {}
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(msg, style: const TextStyle(color: Colors.white)),
+          backgroundColor: AppTheme.rose, behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 5)));
+      }
+    } finally {
+      setState(() => _loading = false);
+    }
+  }
+
+  String _posLabel(String p) => p.replaceAll('_', ' ').split(' ')
+    .map((w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1)}').join(' ');
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppTheme.background,
+      appBar: AppBar(
+        title: Text(_isEdit ? 'Edit Tyre' : 'Add Tyre'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+      body: _fetching
+          ? const Center(child: CircularProgressIndicator(color: AppTheme.primary))
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 600),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Vehicle type toggle
+                        _sectionLabel('Vehicle type'),
+                        Row(children: [
+                          _typeBtn('horse',   'Horse',   Icons.local_shipping),
+                          const SizedBox(width: 12),
+                          _typeBtn('trailer', 'Trailer', Icons.trolley),
+                        ]),
+                        const SizedBox(height: 20),
+
+                        // Vehicle selector
+                        _sectionLabel(_vehicleType == 'horse' ? 'Select horse' : 'Select trailer'),
+                        if (_vehicleType == 'horse') ...[
+                          if (_horses.isEmpty)
+                            _noVehiclesHint('No active horses found. Add a horse first.')
+                          else
+                            _dropdown<int>(
+                              label:     'Horse',
+                              value:     _selectedHorse,
+                              hint:      'Select horse',
+                              items:     _horses.map((h) => DropdownMenuItem<int>(
+                                value: h['id'] as int,
+                                child: Text(h['label'] as String,
+                                  overflow: TextOverflow.ellipsis))).toList(),
+                              onChanged: (v) => setState(() => _selectedHorse = v),
+                              validator: (_) => _selectedHorse == null ? 'Select a horse' : null,
+                            ),
+                        ] else ...[
+                          if (_trailers.isEmpty)
+                            _noVehiclesHint('No active trailers found. Add a trailer first.')
+                          else
+                            _dropdown<int>(
+                              label:     'Trailer',
+                              value:     _selectedTrailer,
+                              hint:      'Select trailer',
+                              items:     _trailers.map((t) => DropdownMenuItem<int>(
+                                value: t['id'] as int,
+                                child: Text(t['label'] as String,
+                                  overflow: TextOverflow.ellipsis))).toList(),
+                              onChanged: (v) => setState(() => _selectedTrailer = v),
+                              validator: (_) => _selectedTrailer == null ? 'Select a trailer' : null,
+                            ),
+                        ],
+                        const SizedBox(height: 4),
+
+                        // Position
+                        _sectionLabel('Position on vehicle'),
+                        _dropdown<String>(
+                          label:     'Position',
+                          value:     _position,
+                          items:     _positions.map((p) => DropdownMenuItem(
+                            value: p, child: Text(_posLabel(p)))).toList(),
+                          onChanged: (v) => setState(() => _position = v!),
+                        ),
+                        const SizedBox(height: 4),
+
+                        // Tyre details
+                        _sectionLabel('Tyre details'),
+                        Row(children: [
+                          Expanded(child: _field(_brandCtrl, 'Brand', hint: 'e.g. Michelin')),
+                          const SizedBox(width: 14),
+                          Expanded(child: _field(_sizeCtrl,  'Size',  hint: 'e.g. 295/80R22.5')),
+                        ]),
+                        _field(_serialCtrl, 'Serial number', required: false, hint: 'Optional'),
+                        Row(children: [
+                          Expanded(child: _field(_installedCtrl, 'Installed at (km)', isNum: true)),
+                          const SizedBox(width: 14),
+                          Expanded(child: _field(_lifespanCtrl,  'Lifespan (km)',     isNum: true)),
+                        ]),
+                        _dropdown<String>(
+                          label:     'Condition',
+                          value:     _condition,
+                          items: const [
+                            DropdownMenuItem(value: 'good',     child: Text('Good')),
+                            DropdownMenuItem(value: 'worn',     child: Text('Worn')),
+                            DropdownMenuItem(value: 'critical', child: Text('Critical — Replace Soon')),
+                            DropdownMenuItem(value: 'replaced', child: Text('Replaced')),
+                          ],
+                          onChanged: (v) => setState(() => _condition = v!),
+                        ),
+                        const SizedBox(height: 4),
+                        _field(_notesCtrl, 'Notes', required: false, maxLines: 3),
+                        const SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: _loading ? null : _save,
+                          child: _loading
+                              ? const SizedBox(height: 18, width: 18,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white, strokeWidth: 2))
+                              : Text(_isEdit ? 'Save changes' : 'Add Tyre'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+    );
+  }
+
+  Widget _sectionLabel(String text) => Padding(
+    padding: const EdgeInsets.only(bottom: 10),
+    child: Text(text, style: const TextStyle(
+      fontSize: 12, fontWeight: FontWeight.w500, color: AppTheme.textMuted)),
+  );
+
+  Widget _noVehiclesHint(String msg) => Container(
+    padding: const EdgeInsets.all(12),
+    margin: const EdgeInsets.only(bottom: 16),
+    decoration: BoxDecoration(
+      color: AppTheme.amber.withValues(alpha: 0.08),
+      borderRadius: BorderRadius.circular(10),
+      border: Border.all(color: AppTheme.amber.withValues(alpha: 0.3), width: 0.5)),
+    child: Row(children: [
+      const Icon(Icons.info_outline, size: 16, color: AppTheme.amber),
+      const SizedBox(width: 10),
+      Expanded(child: Text(msg,
+        style: const TextStyle(fontSize: 12, color: AppTheme.amber))),
+    ]),
+  );
+
+  Widget _typeBtn(String value, String label, IconData icon) => Expanded(
+    child: GestureDetector(
+      onTap: () => setState(() {
+        _vehicleType     = value;
+        _selectedHorse   = null;
+        _selectedTrailer = null;
+      }),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: _vehicleType == value ? AppTheme.primary : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: _vehicleType == value ? AppTheme.primary : AppTheme.border)),
+        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          Icon(icon, size: 16,
+            color: _vehicleType == value ? Colors.white : AppTheme.textMuted),
+          const SizedBox(width: 6),
+          Text(label, style: TextStyle(
+            fontSize: 13, fontWeight: FontWeight.w500,
+            color: _vehicleType == value ? Colors.white : AppTheme.textPrimary)),
+        ]),
+      ),
+    ),
+  );
+
+  Widget _field(TextEditingController ctrl, String label, {
+    bool isNum = false, bool required = true, String? hint, int maxLines = 1,
+  }) =>
+    Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: TextFormField(
+        controller:   ctrl,
+        maxLines:     maxLines,
+        keyboardType: isNum ? TextInputType.number : TextInputType.text,
+        decoration:   InputDecoration(labelText: label, hintText: hint),
+        validator: required ? (v) => v == null || v.isEmpty ? 'Required' : null : null,
+      ),
+    );
+
+  Widget _dropdown<T>({
+    required String label,
+    required T? value,
+    required List<DropdownMenuItem<T>> items,
+    required void Function(T?) onChanged,
+    String? Function(T?)? validator,
+    String? hint,
+  }) =>
+    Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: DropdownButtonFormField<T>(
+        initialValue: value,
+        decoration: InputDecoration(labelText: label),
+        hint:       hint != null
+            ? Text(hint, style: const TextStyle(fontSize: 12)) : null,
+        items:      items,
+        isExpanded: true,
+        onChanged:  onChanged,
+        validator:  validator,
+      ),
+    );
+}

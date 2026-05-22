@@ -1,17 +1,14 @@
 {
   "permissions": {
     "allow": [
-      "Bash(flutter pub *)",
       "Bash(flutter analyze *)",
-      "Bash(flutter devices *)",
+      "Bash(grep -v \"^$\")",
+      "Bash(venv/Scripts/python.exe manage.py runserver 0.0.0.0:8000)",
+      "Bash(\"C:/Program Files/PostgreSQL/16/bin/pg_ctl.exe\" -D \"C:/pgsql/data\" -l \"C:/pgsql/data/pg.log\" start)",
       "Bash(flutter run *)",
-      "Bash(pip --version)",
-      "Bash(python3 -m pip --version)",
-      "Bash(python3 -m django --version)",
-      "Bash(python3 -m pip list)",
-      "Bash(python3 manage.py check)",
-      "Bash(python3 manage.py migrate)",
-      "Bash(python manage.py runserver)"
+      "Bash(venv/Scripts/python.exe -c ' *)",
+      "Bash(git add *)",
+      "Bash(venv/Scripts/python.exe manage.py check)"
     ]
   }
 }

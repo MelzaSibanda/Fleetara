@@ -16,7 +16,9 @@ class DriverDashboardPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final user = (context.read<AuthBloc>().state as AuthAuthenticated).user;
+    final authState = context.read<AuthBloc>().state;
+    if (authState is! AuthAuthenticated) return const SizedBox.shrink();
+    final user = authState.user;
 
     return BlocProvider(
       create: (_) => sl<DriverHomeBloc>()..add(DriverHomeFetchRequested()),

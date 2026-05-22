@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -24,6 +25,40 @@ class _LoginPageState extends State<LoginPage> {
     _emailCtrl.dispose();
     _passCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _resetPassword() async {
+    final email = _emailCtrl.text.trim();
+    if (email.isEmpty || !email.contains('@')) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Enter your email address first',
+          style: TextStyle(color: Colors.white)),
+        backgroundColor: AppTheme.amber,
+        behavior: SnackBarBehavior.floating,
+      ));
+      return;
+    }
+    try {
+      await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Password reset email sent to $email',
+            style: const TextStyle(color: Colors.white)),
+          backgroundColor: AppTheme.emerald,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 5),
+        ));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Could not send reset email. Check the address.',
+            style: TextStyle(color: Colors.white)),
+          backgroundColor: AppTheme.rose,
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    }
   }
 
   void _login() {
@@ -134,7 +169,7 @@ class _LoginPageState extends State<LoginPage> {
                       Align(
                         alignment: Alignment.centerRight,
                         child: GestureDetector(
-                          onTap: () {},
+                          onTap: _resetPassword,
                           child: const Text('Forgot password?',
                             style: TextStyle(fontSize: 11, color: AppTheme.primary)),
                         ),

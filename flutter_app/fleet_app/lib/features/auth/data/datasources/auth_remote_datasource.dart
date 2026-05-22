@@ -77,9 +77,17 @@ class AuthRemoteDataSource {
     try {
       final prefs        = await SharedPreferences.getInstance();
       final refreshToken = prefs.getString('refresh_token');
-      await _client.dio.post('/auth/logout/', data: {'refresh': refreshToken});
+      if (refreshToken != null) {
+        await _client.dio.post('/auth/logout/', data: {'refresh': refreshToken});
+      }
+    } catch (_) {
+      // Proceed with local logout even if server call fails
     } finally {
+      // Clear in-memory tokens immediately
+      _client.clearTokens();
+      // Sign out of Firebase
       await _firebaseAuth.signOut();
+      // Clear persisted tokens
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('access_token');
       await prefs.remove('refresh_token');
