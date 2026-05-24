@@ -11,7 +11,7 @@ from .serializers  import (
     RegisterSerializer, LoginSerializer,
     UserSerializer, ChangePasswordSerializer
 )
-from utils.permissions import IsOwnerOrAdmin
+from utils.permissions import IsOwnerOrAdmin, IsFleetManager
 
 FIREBASE_API_KEY = 'AIzaSyDM-P5zR2V5jmh7GRivF6pjQ-LGwC0W6dc'
 
@@ -111,7 +111,7 @@ class ChangePasswordView(APIView):
 
 class UserListView(generics.ListAPIView):
     serializer_class   = UserSerializer
-    permission_classes = [IsOwnerOrAdmin]
+    permission_classes = [IsFleetManager]
 
     def get_queryset(self):
         queryset = User.objects.all().order_by('first_name')

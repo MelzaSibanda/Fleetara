@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_theme.dart';
-import '../../../../core/utils/responsive.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../auth/presentation/bloc/auth_event.dart';
 import '../../../auth/presentation/bloc/auth_state.dart';
@@ -23,11 +22,17 @@ class AppShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final user     = (context.read<AuthBloc>().state as AuthAuthenticated).user;
-    final isDesktop = Responsive.isDesktop(context);
-    final isMobile  = Responsive.isMobile(context);
-    final items     = _navItemsForRole(user.role);
-    final initials  = user.firstName.isNotEmpty ? user.firstName[0].toUpperCase() : 'U';
+    final authState = context.read<AuthBloc>().state;
+    if (authState is! AuthAuthenticated) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator(
+          color: AppTheme.primary, strokeWidth: 2)),
+      );
+    }
+    final user   = authState.user;
+    final isWide = MediaQuery.of(context).size.width >= 900;
+    final items  = _navItemsForRole(user.role);
+    final initials = user.firstName.isNotEmpty ? user.firstName[0].toUpperCase() : 'U';
 
     return Scaffold(
       backgroundColor: AppTheme.background,
@@ -66,12 +71,6 @@ class AppShell extends StatelessWidget {
               child: Text(initials,
                 style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
             ),
-            onSelected: (value) {
-              if (value == 'logout') {
-                context.read<AuthBloc>().add(AuthLogoutRequested());
-                context.go('/login');
-              }
-            },
             itemBuilder: (_) => [
               PopupMenuItem(
                 enabled: false,
@@ -81,9 +80,9 @@ class AppShell extends StatelessWidget {
                 ]),
               ),
               const PopupMenuDivider(),
-              const PopupMenuItem(
-                value: 'logout',
-                child: Row(children: [
+              PopupMenuItem(
+                onTap: () => _confirmSignOut(context),
+                child: const Row(children: [
                   Icon(Icons.logout, size: 16, color: AppTheme.rose),
                   SizedBox(width: 8),
                   Text('Sign out', style: TextStyle(fontSize: 13, color: AppTheme.rose)),
@@ -94,42 +93,79 @@ class AppShell extends StatelessWidget {
           const SizedBox(width: 8),
         ],
       ),
-      body: isDesktop
+      body: isWide
           ? Row(children: [
               _Sidebar(items: items),
               const VerticalDivider(width: 0.5, thickness: 0.5, color: AppTheme.border),
-              Expanded(
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 1280),
-                    child: child,
-                  ),
-                ),
-              ),
+              Expanded(child: child),
             ])
           : child,
-      bottomNavigationBar: isDesktop ? null : _BottomNav(items: items, compact: isMobile),
+      bottomNavigationBar: isWide ? null : _BottomNav(items: items),
       floatingActionButton: floatingActionButton,
+    );
+  }
+
+  void _confirmSignOut(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        title: const Text('Sign out',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+        content: const Text('Are you sure you want to sign out?',
+          style: TextStyle(fontSize: 13, color: AppTheme.textMuted)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx),
+            child: const Text('Cancel',
+              style: TextStyle(color: AppTheme.textMuted)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(dialogCtx);
+              context.read<AuthBloc>().add(AuthLogoutRequested());
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.rose,
+              minimumSize: const Size(90, 38),
+            ),
+            child: const Text('Sign out'),
+          ),
+        ],
+      ),
     );
   }
 
   List<_NavItem> _navItemsForRole(String role) {
     if (role == 'driver') {
       return [
-        _NavItem('/dashboard',     Icons.home_outlined,         'Home'),
-        _NavItem('/driver/trips',  Icons.route_outlined,         'Trips'),
-        _NavItem('/driver/checks', Icons.checklist_outlined,     'Checks'),
-        _NavItem('/fuel',          Icons.local_gas_station,      'Fuel'),
-        _NavItem('/repairs',       Icons.build_outlined,         'Issues'),
+        _NavItem('/dashboard',    Icons.home_outlined,             'Home'),
+        _NavItem('/trips',        Icons.route_outlined,            'Trips'),
+        _NavItem('/daily-checks', Icons.assignment_turned_in_outlined, 'Daily Checks'),
+        _NavItem('/fuel',         Icons.local_gas_station,         'Fuel Tracking'),
+        _NavItem('/repairs',      Icons.handyman_outlined,         'Repairs'),
       ];
     }
+    if (role == 'fleet_manager') {
+      return [
+        _NavItem('/vehicles',     Icons.local_shipping_outlined,       'Vehicles'),
+        _NavItem('/trips',        Icons.route_outlined,                'Trips'),
+        _NavItem('/daily-checks', Icons.assignment_turned_in_outlined, 'Daily Checks'),
+        _NavItem('/fuel',         Icons.local_gas_station,             'Fuel Tracking'),
+        _NavItem('/tyres',        Icons.tire_repair,                   'Tyres'),
+        _NavItem('/services',     Icons.build_circle_outlined,         'Services'),
+        _NavItem('/repairs',      Icons.handyman_outlined,             'Repairs'),
+        _NavItem('/gps/live',     Icons.location_on_outlined,          'Location'),
+      ];
+    }
+    // owner / admin
     return [
-      _NavItem('/dashboard', Icons.home_outlined,        'Home'),
-      _NavItem('/vehicles',  Icons.local_shipping_outlined,'Fleet'),
-      _NavItem('/trips',     Icons.route_outlined,         'Trips'),
-      _NavItem('/fuel',      Icons.local_gas_station,      'Fuel'),
-      _NavItem('/invoices',  Icons.receipt_long_outlined,  'Finance'),
-      _NavItem('/gps/live',  Icons.map_outlined,           'GPS'),
+      _NavItem('/dashboard', Icons.home_outlined,              'Home'),
+      _NavItem('/vehicles',  Icons.local_shipping_outlined,    'Fleet'),
+      _NavItem('/trips',     Icons.route_outlined,             'Trips'),
+      _NavItem('/fuel',      Icons.local_gas_station,          'Fuel'),
+      _NavItem('/invoices',  Icons.receipt_long_outlined,      'Finance'),
+      _NavItem('/gps/live',  Icons.location_on_outlined,       'GPS'),
     ];
   }
 }
@@ -212,8 +248,7 @@ class _SidebarItem extends StatelessWidget {
 
 class _BottomNav extends StatelessWidget {
   final List<_NavItem> items;
-  final bool compact;
-  const _BottomNav({required this.items, this.compact = false});
+  const _BottomNav({required this.items});
 
   @override
   Widget build(BuildContext context) {
@@ -235,9 +270,9 @@ class _BottomNav extends StatelessWidget {
         indicatorColor: AppTheme.primary.withValues(alpha: 0.18),
         onDestinationSelected: (i) => context.go(items[i].route),
         destinations: items.map((item) => NavigationDestination(
-          icon: Icon(item.icon, color: AppTheme.textMuted, size: compact ? 22 : 20),
-          selectedIcon: Icon(item.icon, color: AppTheme.primary, size: compact ? 22 : 20),
-          label: compact ? '' : item.label,
+          icon: Icon(item.icon, color: AppTheme.textMuted, size: 20),
+          selectedIcon: Icon(item.icon, color: AppTheme.primary, size: 20),
+          label: item.label,
         )).toList(),
       ),
     );

@@ -19,9 +19,11 @@ class DeleteVehicle extends VehicleEvent {
 abstract class VehicleState extends Equatable {
   @override List<Object?> get props => [];
 }
-class VehicleInitial extends VehicleState {}
-class VehicleLoading extends VehicleState {}
-class VehicleError   extends VehicleState {
+class VehicleInitial  extends VehicleState {}
+class VehicleLoading  extends VehicleState {}
+class VehicleDeleting extends VehicleState {}
+class VehicleDeleted  extends VehicleState {}
+class VehicleError    extends VehicleState {
   final String message;
   VehicleError(this.message);
   @override List<Object?> get props => [message];
@@ -38,18 +40,32 @@ class VehicleBloc extends Bloc<VehicleEvent, VehicleState> {
   final ApiClient _client;
 
   VehicleBloc() : _client = sl<ApiClient>(), super(VehicleInitial()) {
+
     on<LoadVehicles>((event, emit) async {
       emit(VehicleLoading());
       try {
         final hRes = await _client.dio.get('/vehicles/horses/');
         final tRes = await _client.dio.get('/vehicles/trailers/');
         final horses = ((hRes.data['results'] ?? hRes.data) as List)
-            .map<VehicleModel>((j) => VehicleModel.fromJson(j)).toList();
+            .map<VehicleModel>((j) => VehicleModel.fromJson(j, type: 'horse')).toList();
         final trailers = ((tRes.data['results'] ?? tRes.data) as List)
-            .map<VehicleModel>((j) => VehicleModel.fromJson(j)).toList();
+            .map<VehicleModel>((j) => VehicleModel.fromJson(j, type: 'trailer')).toList();
         emit(VehiclesLoaded(horses: horses, trailers: trailers));
-      } catch (e) {
+      } catch (_) {
         emit(VehicleError('Failed to load vehicles.'));
+      }
+    });
+
+    on<DeleteVehicle>((event, emit) async {
+      emit(VehicleDeleting());
+      try {
+        final endpoint = event.type == 'horse'
+            ? '/vehicles/horses/${event.id}/'
+            : '/vehicles/trailers/${event.id}/';
+        await _client.dio.delete(endpoint);
+        emit(VehicleDeleted());
+      } catch (_) {
+        emit(VehicleError('Failed to delete vehicle.'));
       }
     });
   }

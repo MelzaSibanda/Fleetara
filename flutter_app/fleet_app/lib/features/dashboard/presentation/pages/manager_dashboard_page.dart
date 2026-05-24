@@ -2,65 +2,251 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/utils/service_locator.dart';
+import '../../../../core/network/api_client.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
-import '../../../auth/presentation/bloc/auth_event.dart';
 import '../../../auth/presentation/bloc/auth_state.dart';
+import '../widgets/app_shell.dart';
+import '../widgets/stat_card.dart';
+import '../widgets/alert_card.dart';
 
-class ManagerDashboardPage extends StatelessWidget {
+class ManagerDashboardPage extends StatefulWidget {
   const ManagerDashboardPage({super.key});
+  @override State<ManagerDashboardPage> createState() => _ManagerDashboardPageState();
+}
+
+class _ManagerDashboardPageState extends State<ManagerDashboardPage> {
+  Map  _stats   = {};
+  List _alerts  = [];
+  bool _loading = true;
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    try {
+      final client = sl<ApiClient>();
+
+      dynamic horses, trailers, trips, dailyChecks, repairs;
+      await Future.wait([
+        client.dio.get('/vehicles/horses/').then((r)    => horses      = r.data).catchError((_) {}),
+        client.dio.get('/vehicles/trailers/').then((r)  => trailers    = r.data).catchError((_) {}),
+        client.dio.get('/trips/').then((r)              => trips       = r.data).catchError((_) {}),
+        client.dio.get('/daily-checks/').then((r)       => dailyChecks = r.data).catchError((_) {}),
+        client.dio.get('/repairs/').then((r)            => repairs     = r.data).catchError((_) {}),
+      ]);
+
+      final checkList  = (dailyChecks is Map ? (dailyChecks['results'] ?? []) : []) as List;
+      final repairList = (repairs     is Map ? (repairs['results']     ?? []) : []) as List;
+
+      final horseCount   = horses   is Map ? (horses['count']   ?? 0) as int : 0;
+      final trailerCount = trailers is Map ? (trailers['count'] ?? 0) as int : 0;
+      final vehicleCount = horseCount + trailerCount;
+      final activeTrips  = trips    is Map ? (trips['count']    ?? 0) as int : 0;
+      final failedChecks = checkList.where((c) => c['overall_status'] == 'fail').length;
+      final openRepairs  = repairList.where((r) => r['status'] != 'resolved').length;
+
+      // Build alerts from failed checks and open repairs
+      final alerts = <Map<String, dynamic>>[];
+      if (failedChecks > 0) {
+        alerts.add({
+          'title':    '$failedChecks Failed Daily Check${failedChecks > 1 ? 's' : ''}',
+          'subtitle': 'Vehicles with issues need attention',
+          'type':     'danger',
+        });
+      }
+      if (openRepairs > 0) {
+        alerts.add({
+          'title':    '$openRepairs Open Repair${openRepairs > 1 ? 's' : ''}',
+          'subtitle': 'Unresolved repair reports',
+          'type':     'warning',
+        });
+      }
+
+      setState(() {
+        _stats = {
+          'vehicles':  vehicleCount,
+          'trips':     activeTrips,
+          'checks':    checkList.length,
+          'repairs':   openRepairs,
+        };
+        _alerts  = alerts;
+        _loading = false;
+      });
+    } catch (_) {
+      setState(() => _loading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final user = (context.read<AuthBloc>().state as AuthAuthenticated).user;
+    final authState = context.read<AuthBloc>().state;
+    if (authState is! AuthAuthenticated) return const SizedBox.shrink();
+    final user = authState.user;
+    final hour = DateTime.now().hour;
+    final greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Fleetara'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () {
-              context.read<AuthBloc>().add(AuthLogoutRequested());
-              context.go('/login');
-            },
+    return AppShell(
+      title: 'Fleetara',
+      child: RefreshIndicator(
+        onRefresh: _load,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Greeting
+              Row(children: [
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('$greeting, ${user.firstName}',
+                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w500,
+                      color: AppTheme.textPrimary)),
+                  const SizedBox(height: 2),
+                  Text('Fleet Manager · ${_today()}',
+                    style: const TextStyle(fontSize: 12, color: AppTheme.textMuted)),
+                ])),
+                ElevatedButton.icon(
+                  onPressed: () => context.go('/trips/add'),
+                  style: ElevatedButton.styleFrom(
+                    minimumSize: const Size(120, 40),
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                  ),
+                  icon: const Icon(Icons.add, size: 16),
+                  label: const Text('New Trip'),
+                ),
+              ]),
+              const SizedBox(height: 24),
+
+              // KPI grid
+              if (_loading)
+                const Center(child: Padding(
+                  padding: EdgeInsets.all(40),
+                  child: CircularProgressIndicator(color: AppTheme.primary),
+                ))
+              else ...[
+                GridView.count(
+                  crossAxisCount: 2,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  crossAxisSpacing: 12,
+                  mainAxisSpacing: 12,
+                  childAspectRatio: 1.55,
+                  children: [
+                    StatCard(
+                      label: 'Total Vehicles',
+                      value: '${_stats['vehicles'] ?? 0}',
+                      icon:  Icons.local_shipping_outlined,
+                      color: AppTheme.primary,
+                      trend: '↑ Fleet',
+                    ),
+                    StatCard(
+                      label: 'Active Trips',
+                      value: '${_stats['trips'] ?? 0}',
+                      icon:  Icons.route_outlined,
+                      color: AppTheme.emerald,
+                      trend: 'On road',
+                    ),
+                    StatCard(
+                      label: 'Daily Checks',
+                      value: '${_stats['checks'] ?? 0}',
+                      icon:  Icons.assignment_turned_in_outlined,
+                      color: AppTheme.amber,
+                      trend: 'Today',
+                    ),
+                    StatCard(
+                      label: 'Open Repairs',
+                      value: '${_stats['repairs'] ?? 0}',
+                      icon:  Icons.handyman_outlined,
+                      color: AppTheme.rose,
+                      trend: 'Pending',
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+
+                // Quick nav tiles
+                const SectionHeader('Quick access'),
+                GridView.count(
+                  crossAxisCount: 4,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  crossAxisSpacing: 10,
+                  mainAxisSpacing: 10,
+                  childAspectRatio: 1.1,
+                  children: [
+                    _QuickTile(icon: Icons.local_shipping_outlined, label: 'Vehicles',     color: AppTheme.primary,  route: '/vehicles',     context: context),
+                    _QuickTile(icon: Icons.route_outlined,           label: 'Trips',        color: AppTheme.emerald,  route: '/trips',        context: context),
+                    _QuickTile(icon: Icons.assignment_turned_in_outlined, label: 'Checks', color: AppTheme.amber,    route: '/daily-checks', context: context),
+                    _QuickTile(icon: Icons.local_gas_station,        label: 'Fuel',         color: AppTheme.primary,  route: '/fuel',         context: context),
+                    _QuickTile(icon: Icons.tire_repair,              label: 'Tyres',        color: AppTheme.darkNavy, route: '/tyres',        context: context),
+                    _QuickTile(icon: Icons.build_circle_outlined,    label: 'Services',     color: AppTheme.amber,    route: '/services',     context: context),
+                    _QuickTile(icon: Icons.handyman_outlined,        label: 'Repairs',      color: AppTheme.rose,     route: '/repairs',      context: context),
+                    _QuickTile(icon: Icons.location_on_outlined,     label: 'Location',     color: AppTheme.emerald,  route: '/gps/live',     context: context),
+                  ],
+                ),
+                const SizedBox(height: 24),
+
+                // Alerts
+                const SectionHeader('Alerts'),
+                if (_alerts.isEmpty)
+                  const AlertCard(
+                    title:   'All clear',
+                    message: 'No issues to report. Fleet is running smoothly.',
+                    type:    AlertType.success,
+                  )
+                else
+                  ..._alerts.map((a) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: AlertCard(
+                      title:   a['title'],
+                      message: a['subtitle'],
+                      type:    a['type'] == 'danger' ? AlertType.danger : AlertType.warning,
+                    ),
+                  )),
+              ],
+            ],
           ),
-        ],
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Hello, ${user.firstName} 👋', style: Theme.of(context).textTheme.displayMedium),
-            const SizedBox(height: 4),
-            Text('Fleet Manager Dashboard', style: Theme.of(context).textTheme.bodyMedium),
-            const SizedBox(height: 32),
-            Card(
-              child: ListTile(
-                leading: const Icon(Icons.local_shipping, color: AppTheme.primary),
-                title: const Text('Vehicles'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () {},
-              ),
-            ),
-            Card(
-              child: ListTile(
-                leading: const Icon(Icons.route, color: AppTheme.secondary),
-                title: const Text('All Trips'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () {},
-              ),
-            ),
-            Card(
-              child: ListTile(
-                leading: const Icon(Icons.build, color: AppTheme.warning),
-                title: const Text('Maintenance'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () {},
-              ),
-            ),
-          ],
         ),
+      ),
+    );
+  }
+
+  String _today() {
+    final now = DateTime.now();
+    const months = ['Jan','Feb','Mar','Apr','May','Jun',
+                    'Jul','Aug','Sep','Oct','Nov','Dec'];
+    return '${now.day} ${months[now.month - 1]} ${now.year}';
+  }
+}
+
+class _QuickTile extends StatelessWidget {
+  final IconData icon;
+  final String   label;
+  final Color    color;
+  final String   route;
+  final BuildContext context;
+  const _QuickTile({required this.icon, required this.label, required this.color,
+    required this.route, required this.context});
+
+  @override
+  Widget build(BuildContext _) {
+    return GestureDetector(
+      onTap: () => context.go(route),
+      child: Container(
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withValues(alpha: 0.15), width: 0.5),
+        ),
+        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+          Icon(icon, color: color, size: 24),
+          const SizedBox(height: 6),
+          Text(label,
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: color),
+            textAlign: TextAlign.center),
+        ]),
       ),
     );
   }
