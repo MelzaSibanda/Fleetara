@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/service_locator.dart';
 import '../../../../core/network/api_client.dart';
-import '../../../../core/utils/responsive.dart';
 
 class FinancialSummaryPage extends StatefulWidget {
   const FinancialSummaryPage({super.key});
