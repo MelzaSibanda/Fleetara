@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/service_locator.dart';
-import '../../../../core/network/api_client.dart';
+import '../../../../core/services/firestore_service.dart';
 import '../../../dashboard/presentation/widgets/app_shell.dart';
 import '../../../../core/utils/responsive.dart';
 
@@ -15,6 +15,7 @@ class _FuelPageState extends State<FuelPage> {
   List _entries   = [];
   Map  _analytics = {};
   bool _loading   = true;
+  final _fs = sl<FirestoreService>();
 
   @override
   void initState() { super.initState(); _load(); }
@@ -22,13 +23,28 @@ class _FuelPageState extends State<FuelPage> {
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
-      final client = sl<ApiClient>();
-      final res    = await client.dio.get('/fuel/');
-      final analy  = await client.dio.get('/fuel/analytics/');
+      final snap = await _fs.db.collection('fuel_entries')
+          .orderBy('created_at', descending: true)
+          .get();
+      final entries = _fs.docsToList(snap);
+
+      // Compute analytics client-side
+      double totalLiters = 0;
+      double totalCost   = 0;
+      for (final e in entries) {
+        totalLiters += (e['liters'] as num?)?.toDouble()  ?? 0;
+        totalCost   += (e['cost']   as num?)?.toDouble()  ?? 0;
+      }
+
       setState(() {
-        _entries   = res.data['results'] ?? res.data;
-        _analytics = analy.data is Map ? analy.data : {};
-        _loading   = false;
+        _entries   = entries;
+        _analytics = {
+          'total_liters':        totalLiters,
+          'total_cost':          totalCost,
+          'avg_price_per_liter': entries.isEmpty ? 0 : totalCost / totalLiters,
+          'total_fill_ups':      entries.length,
+        };
+        _loading = false;
       });
     } catch (_) { setState(() => _loading = false); }
   }
@@ -55,7 +71,6 @@ class _FuelPageState extends State<FuelPage> {
             color: AppTheme.primary,
             onRefresh: _load,
             child: ListView(padding: Responsive.pagePadding(context), children: [
-              // 4 KPI cards
               GridView.count(
                 crossAxisCount: Responsive.isDesktop(context) ? 4 : 2,
                 shrinkWrap: true,
@@ -92,7 +107,6 @@ class _FuelPageState extends State<FuelPage> {
               ),
               const SizedBox(height: 20),
 
-              // Monthly bar chart
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -109,7 +123,6 @@ class _FuelPageState extends State<FuelPage> {
               ),
               const SizedBox(height: 16),
 
-              // Fuel history
               Container(
                 decoration: BoxDecoration(
                   color: AppTheme.surface,
@@ -148,7 +161,6 @@ class _FuelPageState extends State<FuelPage> {
               ),
               const SizedBox(height: 16),
 
-              // All entries
               if (_entries.isNotEmpty) ...[
                 const Text('Fuel history',
                   style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: AppTheme.textPrimary)),

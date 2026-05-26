@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/service_locator.dart';
-import '../../../../core/network/api_client.dart';
+import '../../../../core/services/firestore_service.dart';
 import '../../../dashboard/presentation/widgets/app_shell.dart';
 import '../../data/trip_model.dart';
 import '../../../../core/utils/responsive.dart';
@@ -16,6 +16,7 @@ class _TripsPageState extends State<TripsPage> {
   List<TripModel> _trips   = [];
   bool            _loading = true;
   String          _filter  = 'all';
+  final _fs = sl<FirestoreService>();
 
   static const _filters = ['all', 'scheduled', 'in_progress', 'completed', 'cancelled'];
 
@@ -25,11 +26,17 @@ class _TripsPageState extends State<TripsPage> {
   Future<void> _loadTrips() async {
     setState(() => _loading = true);
     try {
-      final res = await sl<ApiClient>().dio.get('/trips/',
-        queryParameters: _filter != 'all' ? {'status': _filter} : null);
-      final list = (res.data['results'] ?? res.data) as List;
+      var query = _fs.db.collection('trips') as dynamic;
+      if (_filter != 'all') {
+        query = _fs.db.collection('trips').where('status', isEqualTo: _filter);
+      } else {
+        query = _fs.db.collection('trips');
+      }
+      final snap = await query.get();
       setState(() {
-        _trips   = list.map((j) => TripModel.fromJson(j)).toList();
+        _trips   = (_fs.docsToList(snap) as List)
+            .map((j) => TripModel.fromJson(j as Map<String, dynamic>))
+            .toList();
         _loading = false;
       });
     } catch (_) { setState(() => _loading = false); }
@@ -42,7 +49,7 @@ class _TripsPageState extends State<TripsPage> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         title: const Text('Delete trip',
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
-        content: Text('Delete trip #${trip.id} to ${trip.destination}?\nThis cannot be undone.',
+        content: Text('Delete trip to ${trip.destination}?\nThis cannot be undone.',
           style: const TextStyle(fontSize: 13, color: AppTheme.textMuted)),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false),
@@ -57,7 +64,7 @@ class _TripsPageState extends State<TripsPage> {
     );
     if (confirmed != true) return;
     try {
-      await sl<ApiClient>().dio.delete('/trips/${trip.id}/');
+      await _fs.db.collection('trips').doc(trip.id).delete();
       _loadTrips();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -91,7 +98,6 @@ class _TripsPageState extends State<TripsPage> {
         const SizedBox(width: 8),
       ],
       child: Column(children: [
-        // Filter chips
         Container(
           color: AppTheme.surface,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -177,10 +183,7 @@ class _TripCard extends StatelessWidget {
           border: Border.all(color: AppTheme.border, width: 0.5),
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          // Header
           Row(children: [
-            Text('#${trip.id}', style: const TextStyle(fontSize: 11, color: AppTheme.textMuted)),
-            const SizedBox(width: 8),
             Expanded(child: Text(trip.clientName,
               style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500,
                 color: AppTheme.textPrimary))),
@@ -189,9 +192,7 @@ class _TripCard extends StatelessWidget {
             PopupMenuButton<String>(
               icon: const Icon(Icons.more_vert, size: 16, color: AppTheme.textMuted),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              onSelected: (v) {
-                if (v == 'delete') onDelete();
-              },
+              onSelected: (v) { if (v == 'delete') onDelete(); },
               itemBuilder: (_) => [
                 const PopupMenuItem(value: 'delete',
                   child: Row(children: [
@@ -203,7 +204,6 @@ class _TripCard extends StatelessWidget {
             ),
           ]),
           const SizedBox(height: 10),
-          // Route
           Row(children: [
             Container(width: 8, height: 8,
               decoration: const BoxDecoration(color: AppTheme.primary, shape: BoxShape.circle)),
@@ -223,7 +223,6 @@ class _TripCard extends StatelessWidget {
           const SizedBox(height: 10),
           const Divider(height: 1, thickness: 0.5, color: AppTheme.border),
           const SizedBox(height: 8),
-          // Meta row
           Wrap(spacing: 14, runSpacing: 4, children: [
             _meta(Icons.calendar_today_outlined, trip.formattedDate),
             if (trip.driverName.isNotEmpty) _meta(Icons.person_outline, trip.driverName),

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/service_locator.dart';
-import '../../../../core/network/api_client.dart';
+import '../../../../core/services/firestore_service.dart';
 import '../../../dashboard/presentation/widgets/app_shell.dart';
 
 class ServicesPage extends StatefulWidget {
@@ -14,6 +14,7 @@ class _ServicesPageState extends State<ServicesPage> {
   List   _services = [];
   bool   _loading  = true;
   String _filter   = 'all';
+  final _fs = sl<FirestoreService>();
 
   @override
   void initState() { super.initState(); _load(); }
@@ -21,9 +22,13 @@ class _ServicesPageState extends State<ServicesPage> {
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
-      final params = _filter != 'all' ? {'status': _filter} : null;
-      final res    = await sl<ApiClient>().dio.get('/services/', queryParameters: params);
-      setState(() { _services = res.data['results'] ?? res.data; _loading = false; });
+      final snap = _filter == 'all'
+          ? await _fs.db.collection('vehicle_services')
+              .orderBy('scheduled_date', descending: true).get()
+          : await _fs.db.collection('vehicle_services')
+              .where('status', isEqualTo: _filter)
+              .orderBy('scheduled_date', descending: true).get();
+      setState(() { _services = _fs.docsToList(snap); _loading = false; });
     } catch (_) { setState(() => _loading = false); }
   }
 
@@ -54,7 +59,7 @@ class _ServicesPageState extends State<ServicesPage> {
   }
 
   String _typeLabel(String t) => t.replaceAll('_', ' ')
-    .split(' ').map((w) => '${w[0].toUpperCase()}${w.substring(1)}').join(' ');
+    .split(' ').map((w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1)}').join(' ');
 
   @override
   Widget build(BuildContext context) {
@@ -68,7 +73,6 @@ class _ServicesPageState extends State<ServicesPage> {
         ),
       ],
       child: Column(children: [
-        // Filter chips
         Container(
           color: AppTheme.surface,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -118,12 +122,13 @@ class _ServicesPageState extends State<ServicesPage> {
                   ),
                 )
               : RefreshIndicator(
+                  color: AppTheme.primary,
                   onRefresh: _load,
                   child: ListView.builder(
                     padding: const EdgeInsets.all(16),
                     itemCount: _services.length,
                     itemBuilder: (_, i) => _ServiceCard(
-                      service: _services[i],
+                      service: Map<String, dynamic>.from(_services[i]),
                       statusColor: _statusColor,
                       statusIcon:  _statusIcon,
                       statusLabel: _statusLabel,
@@ -154,11 +159,11 @@ class _ServiceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final s      = service['status'] ?? 'scheduled';
-    final sc     = statusColor(s);
-    final type   = service['service_type'] ?? '';
-    final date   = (service['scheduled_date'] ?? '').toString();
-    final cost   = service['total_cost'] ?? '0';
+    final s        = service['status'] ?? 'scheduled';
+    final sc       = statusColor(s);
+    final type     = service['service_type'] ?? '';
+    final date     = (service['scheduled_date'] ?? '').toString();
+    final cost     = service['total_cost'] ?? '0';
     final workshop = service['workshop_name'] ?? '';
 
     return Container(

@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/service_locator.dart';
-import '../../../../core/network/api_client.dart';
+import '../../../../core/services/firestore_service.dart';
 import '../../../dashboard/presentation/widgets/app_shell.dart';
 import '../../../trips/data/trip_model.dart';
 import '../../../../../core/utils/responsive.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class DriverTripsPage extends StatefulWidget {
   const DriverTripsPage({super.key});
@@ -14,9 +15,10 @@ class DriverTripsPage extends StatefulWidget {
 
 class _DriverTripsPageState extends State<DriverTripsPage> {
   List<TripModel> _trips   = [];
-  bool            _loading = true;
-  String          _filter  = 'all';
+  bool            _loading  = true;
+  String          _filter   = 'all';
   bool            _updating = false;
+  final _fs = sl<FirestoreService>();
 
   static const _filters = ['all', 'scheduled', 'in_progress', 'completed'];
 
@@ -26,20 +28,28 @@ class _DriverTripsPageState extends State<DriverTripsPage> {
   Future<void> _loadTrips() async {
     setState(() => _loading = true);
     try {
-      final params = _filter != 'all' ? {'status': _filter} : null;
-      final res = await sl<ApiClient>().dio.get('/trips/', queryParameters: params);
-      final list = (res.data['results'] ?? res.data) as List;
+      final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+      var query = _fs.db.collection('trips').where('driver_id', isEqualTo: uid);
+      if (_filter != 'all') {
+        query = query.where('status', isEqualTo: _filter);
+      }
+      final snap = await query.get();
       setState(() {
-        _trips   = list.map<TripModel>((j) => TripModel.fromJson(j)).toList();
+        _trips   = _fs.docsToList(snap)
+            .map<TripModel>((j) => TripModel.fromJson(j))
+            .toList();
         _loading = false;
       });
     } catch (_) { setState(() => _loading = false); }
   }
 
-  Future<void> _updateStatus(int tripId, String newStatus) async {
+  Future<void> _updateStatus(String tripId, String newStatus) async {
     setState(() => _updating = true);
     try {
-      await sl<ApiClient>().dio.patch('/trips/$tripId/status/', data: {'status': newStatus});
+      final data = <String, dynamic>{'status': newStatus};
+      if (newStatus == 'in_progress') data['actual_start'] = DateTime.now().toIso8601String();
+      if (newStatus == 'completed')   data['actual_end']   = DateTime.now().toIso8601String();
+      await _fs.db.collection('trips').doc(tripId).update(data);
       await _loadTrips();
     } catch (_) {} finally {
       setState(() => _updating = false);
@@ -120,7 +130,7 @@ class _DriverTripsPageState extends State<DriverTripsPage> {
 class _DriverTripCard extends StatelessWidget {
   final TripModel    trip;
   final VoidCallback onTap;
-  final Future<void> Function(int, String) onStatusUpdate;
+  final Future<void> Function(String, String) onStatusUpdate;
   const _DriverTripCard({required this.trip, required this.onTap, required this.onStatusUpdate});
 
   @override

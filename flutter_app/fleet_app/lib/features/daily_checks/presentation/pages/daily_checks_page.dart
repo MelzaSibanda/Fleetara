@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/service_locator.dart';
-import '../../../../core/network/api_client.dart';
+import '../../../../core/services/firestore_service.dart';
 import '../../../dashboard/presentation/widgets/app_shell.dart';
 
 class DailyChecksPage extends StatefulWidget {
@@ -11,9 +11,10 @@ class DailyChecksPage extends StatefulWidget {
 }
 
 class _DailyChecksPageState extends State<DailyChecksPage> {
-  List _checks  = [];
-  bool _loading = true;
-  String _filter = 'all';
+  List   _checks  = [];
+  bool   _loading = true;
+  String _filter  = 'all';
+  final _fs = sl<FirestoreService>();
 
   @override
   void initState() { super.initState(); _load(); }
@@ -21,9 +22,13 @@ class _DailyChecksPageState extends State<DailyChecksPage> {
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
-      final params = _filter != 'all' ? {'status': _filter} : null;
-      final res    = await sl<ApiClient>().dio.get('/daily-checks/', queryParameters: params);
-      setState(() { _checks = res.data['results'] ?? res.data; _loading = false; });
+      final snap = _filter == 'all'
+          ? await _fs.db.collection('daily_checks')
+              .orderBy('check_date', descending: true).get()
+          : await _fs.db.collection('daily_checks')
+              .where('overall_status', isEqualTo: _filter)
+              .orderBy('check_date', descending: true).get();
+      setState(() { _checks = _fs.docsToList(snap); _loading = false; });
     } catch (_) { setState(() => _loading = false); }
   }
 
@@ -58,7 +63,6 @@ class _DailyChecksPageState extends State<DailyChecksPage> {
         ),
       ],
       child: Column(children: [
-        // Filter chips
         Container(
           color: AppTheme.surface,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -108,12 +112,13 @@ class _DailyChecksPageState extends State<DailyChecksPage> {
                   ),
                 )
               : RefreshIndicator(
+                  color: AppTheme.primary,
                   onRefresh: _load,
                   child: ListView.builder(
                     padding: const EdgeInsets.all(16),
                     itemCount: _checks.length,
                     itemBuilder: (_, i) => _CheckCard(
-                      check: _checks[i],
+                      check:       Map<String, dynamic>.from(_checks[i]),
                       statusColor: _statusColor,
                       statusIcon:  _statusIcon,
                     ),
@@ -135,22 +140,21 @@ class _CheckCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final status  = check['overall_status'] ?? 'pass';
-    final sc      = statusColor(status);
-    final date    = (check['check_date'] ?? '').toString();
-    final driver  = check['driver_name'] ?? '';
-    final reg     = check['horse_reg'] ?? '';
-    final odo     = check['odometer'] ?? 0;
-    final fuel    = (check['fuel_level'] ?? '').toString().replaceAll('_', '/');
+    final status = check['overall_status'] ?? 'pass';
+    final sc     = statusColor(status);
+    final date   = (check['check_date'] ?? '').toString();
+    final driver = check['driver_name'] ?? '';
+    final reg    = check['horse_reg']   ?? '';
+    final odo    = check['odometer']    ?? 0;
+    final fuel   = (check['fuel_level'] ?? '').toString().replaceAll('_', '/');
 
-    // Collect failed items
     final issues = <String>[];
-    if (check['oil_ok']            == false) issues.add('Oil');
-    if (check['coolant_ok']        == false) issues.add('Coolant');
-    if (check['tyre_pressure_ok']  == false) issues.add('Tyres');
-    if (check['lights_ok']         == false) issues.add('Lights');
-    if (check['brakes_ok']         == false) issues.add('Brakes');
-    if (check['wipers_ok']         == false) issues.add('Wipers');
+    if (check['oil_ok']           == false) issues.add('Oil');
+    if (check['coolant_ok']       == false) issues.add('Coolant');
+    if (check['tyre_pressure_ok'] == false) issues.add('Tyres');
+    if (check['lights_ok']        == false) issues.add('Lights');
+    if (check['brakes_ok']        == false) issues.add('Brakes');
+    if (check['wipers_ok']        == false) issues.add('Wipers');
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -159,7 +163,7 @@ class _CheckCard extends StatelessWidget {
         color: AppTheme.surface,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: status == 'fail' ? AppTheme.rose.withValues(alpha: 0.3)
+          color: status == 'fail'    ? AppTheme.rose.withValues(alpha: 0.3)
                : status == 'warning' ? AppTheme.amber.withValues(alpha: 0.3)
                : AppTheme.border,
           width: 0.5),
@@ -218,7 +222,7 @@ class _CheckCard extends StatelessWidget {
         ],
         if ((check['notes'] ?? '').toString().isNotEmpty) ...[
           const SizedBox(height: 6),
-          Text(check['notes'],
+          Text(check['notes'].toString(),
             style: const TextStyle(fontSize: 11, color: AppTheme.textMuted),
             maxLines: 2, overflow: TextOverflow.ellipsis),
         ],

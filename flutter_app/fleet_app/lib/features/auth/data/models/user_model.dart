@@ -1,6 +1,5 @@
 class UserModel {
-  final int     id;
-  final String  username;
+  final String  id;
   final String  email;
   final String  firstName;
   final String  lastName;
@@ -14,7 +13,6 @@ class UserModel {
 
   UserModel({
     required this.id,
-    required this.username,
     required this.email,
     required this.firstName,
     required this.lastName,
@@ -28,21 +26,36 @@ class UserModel {
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
+    final first = json['first_name'] ?? '';
+    final last  = json['last_name']  ?? '';
     return UserModel(
-      id:             json['id'],
-      username:       json['username']       ?? '',
-      email:          json['email']          ?? '',
-      firstName:      json['first_name']     ?? '',
-      lastName:       json['last_name']      ?? '',
-      fullName:       json['full_name']      ?? '',
-      phone:          json['phone']          ?? '',
-      role:           json['role']           ?? 'driver',
-      profilePhoto:   json['profile_photo'],
-      licenseNumber:  json['license_number'],
-      licenseExpiry:  json['license_expiry'],
-      isActive:       json['is_active']      ?? true,
+      id:            json['id']            ?? '',
+      email:         json['email']         ?? '',
+      firstName:     first,
+      lastName:      last,
+      fullName:      json['full_name']     ?? '$first $last'.trim(),
+      phone:         json['phone']         ?? '',
+      role:          json['role']          ?? 'driver',
+      profilePhoto:  json['profile_photo'],
+      licenseNumber: json['license_number'],
+      licenseExpiry: json['license_expiry'],
+      isActive:      json['is_active']     ?? true,
     );
   }
+
+  Map<String, dynamic> toJson() => {
+    'id':            id,
+    'email':         email,
+    'first_name':    firstName,
+    'last_name':     lastName,
+    'full_name':     fullName,
+    'phone':         phone,
+    'role':          role,
+    'profile_photo': profilePhoto,
+    'license_number': licenseNumber,
+    'license_expiry': licenseExpiry,
+    'is_active':     isActive,
+  };
 
   bool get isOwner        => role == 'owner';
   bool get isAdmin        => role == 'admin';

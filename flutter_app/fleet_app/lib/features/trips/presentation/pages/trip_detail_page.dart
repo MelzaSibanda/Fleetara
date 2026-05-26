@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/service_locator.dart';
-import '../../../../core/network/api_client.dart';
+import '../../../../core/services/firestore_service.dart';
 import '../../data/trip_model.dart';
 
 class TripDetailPage extends StatefulWidget {
-  final int tripId;
+  final String tripId;
   const TripDetailPage({super.key, required this.tripId});
   @override State<TripDetailPage> createState() => _TripDetailPageState();
 }
@@ -15,6 +15,7 @@ class _TripDetailPageState extends State<TripDetailPage> {
   TripModel? _trip;
   bool       _loading  = true;
   bool       _updating = false;
+  final _fs = sl<FirestoreService>();
 
   @override
   void initState() { super.initState(); _load(); }
@@ -22,8 +23,12 @@ class _TripDetailPageState extends State<TripDetailPage> {
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
-      final res = await sl<ApiClient>().dio.get('/trips/${widget.tripId}/');
-      setState(() { _trip = TripModel.fromJson(res.data); _loading = false; });
+      final doc = await _fs.db.collection('trips').doc(widget.tripId).get();
+      if (doc.exists) {
+        setState(() { _trip = TripModel.fromJson(_fs.docToMap(doc)); _loading = false; });
+      } else {
+        setState(() => _loading = false);
+      }
     } catch (_) { setState(() => _loading = false); }
   }
 
@@ -38,7 +43,7 @@ class _TripDetailPageState extends State<TripDetailPage> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         title: Text('${labels[newStatus]} trip?',
           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
-        content: Text('Mark trip #${widget.tripId} as ${newStatus.replaceAll('_', ' ')}?',
+        content: Text('Mark trip as ${newStatus.replaceAll('_', ' ')}?',
           style: const TextStyle(fontSize: 13, color: AppTheme.textMuted)),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false),
@@ -56,18 +61,17 @@ class _TripDetailPageState extends State<TripDetailPage> {
 
     setState(() => _updating = true);
     try {
-      await sl<ApiClient>().dio.patch(
-        '/trips/${widget.tripId}/status/',
-        data: {'status': newStatus},
-      );
+      final updates = <String, dynamic>{'status': newStatus};
+      if (newStatus == 'in_progress') updates['actual_start'] = DateTime.now().toIso8601String();
+      if (newStatus == 'completed')   updates['actual_end']   = DateTime.now().toIso8601String();
+      await _fs.db.collection('trips').doc(widget.tripId).update(updates);
       await _load();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('Trip marked as ${newStatus.replaceAll('_', ' ')}',
             style: const TextStyle(color: Colors.white)),
           backgroundColor: colors[newStatus],
-          behavior: SnackBarBehavior.floating,
-        ));
+          behavior: SnackBarBehavior.floating));
       }
     } catch (e) {
       if (mounted) {
@@ -87,7 +91,7 @@ class _TripDetailPageState extends State<TripDetailPage> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         title: const Text('Delete trip',
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
-        content: const Text('This trip will be permanently deleted. This cannot be undone.',
+        content: const Text('This trip will be permanently deleted.',
           style: TextStyle(fontSize: 13, color: AppTheme.textMuted)),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false),
@@ -103,7 +107,7 @@ class _TripDetailPageState extends State<TripDetailPage> {
     );
     if (confirmed != true) return;
     try {
-      await sl<ApiClient>().dio.delete('/trips/${widget.tripId}/');
+      await _fs.db.collection('trips').doc(widget.tripId).delete();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text('Trip deleted', style: TextStyle(color: Colors.white)),
@@ -124,7 +128,7 @@ class _TripDetailPageState extends State<TripDetailPage> {
     return Scaffold(
       backgroundColor: AppTheme.background,
       appBar: AppBar(
-        title: Text('Trip #${widget.tripId}'),
+        title: Text('Trip #${widget.tripId.substring(0, 6)}'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.go('/trips'),
@@ -135,8 +139,7 @@ class _TripDetailPageState extends State<TripDetailPage> {
               icon: const Icon(Icons.edit_outlined, size: 20),
               tooltip: 'Edit trip',
               onPressed: () async {
-                await context.push('/trips/${widget.tripId}/edit',
-                  extra: _trip);
+                await context.push('/trips/${widget.tripId}/edit', extra: _trip);
                 _load();
               },
             ),
@@ -184,7 +187,6 @@ class _TripDetailPageState extends State<TripDetailPage> {
                       ),
                       const SizedBox(height: 20),
 
-                      // Route card
                       _card(children: [
                         _label('Route'),
                         const SizedBox(height: 10),
@@ -208,7 +210,6 @@ class _TripDetailPageState extends State<TripDetailPage> {
                       ]),
                       const SizedBox(height: 12),
 
-                      // Details grid
                       _card(children: [
                         _label('Trip details'),
                         const SizedBox(height: 10),
@@ -232,7 +233,6 @@ class _TripDetailPageState extends State<TripDetailPage> {
                       ]),
                       const SizedBox(height: 12),
 
-                      // Assignment card
                       _card(children: [
                         _label('Assigned to'),
                         const SizedBox(height: 10),
@@ -248,7 +248,6 @@ class _TripDetailPageState extends State<TripDetailPage> {
                       ]),
                       const SizedBox(height: 24),
 
-                      // Action buttons
                       if (_updating)
                         const Center(child: CircularProgressIndicator(color: AppTheme.primary))
                       else

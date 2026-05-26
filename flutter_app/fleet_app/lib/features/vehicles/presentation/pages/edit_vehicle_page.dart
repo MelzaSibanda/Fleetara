@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/service_locator.dart';
-import '../../../../core/network/api_client.dart';
+import '../../../../core/services/firestore_service.dart';
 import '../../data/vehicle_model.dart';
 
 class EditVehiclePage extends StatefulWidget {
@@ -13,9 +13,10 @@ class EditVehiclePage extends StatefulWidget {
 }
 
 class _EditVehiclePageState extends State<EditVehiclePage> {
-  final _formKey       = GlobalKey<FormState>();
-  bool  _loading       = false;
+  final _formKey = GlobalKey<FormState>();
+  bool  _loading = false;
   late String _status;
+  final _fs = sl<FirestoreService>();
 
   late final TextEditingController _regCtrl;
   late final TextEditingController _makeCtrl;
@@ -30,17 +31,17 @@ class _EditVehiclePageState extends State<EditVehiclePage> {
   @override
   void initState() {
     super.initState();
-    final v = widget.vehicle;
-    _status       = v.status;
-    _regCtrl      = TextEditingController(text: v.registrationNumber);
-    _makeCtrl     = TextEditingController(text: v.make);
-    _modelCtrl    = TextEditingController(text: v.model);
-    _yearCtrl     = TextEditingController(text: v.year.toString());
-    _odomCtrl     = TextEditingController(text: v.odometer.toString());
-    _licenseCtrl  = TextEditingController(text: v.licenseExpiry);
-    _insuranceCtrl= TextEditingController(text: v.insuranceExpiry);
-    _serviceKmCtrl= TextEditingController(text: v.serviceIntervalKm.toString());
-    _notesCtrl    = TextEditingController(text: v.notes ?? '');
+    final v      = widget.vehicle;
+    _status      = v.status;
+    _regCtrl     = TextEditingController(text: v.registrationNumber);
+    _makeCtrl    = TextEditingController(text: v.make);
+    _modelCtrl   = TextEditingController(text: v.model);
+    _yearCtrl    = TextEditingController(text: v.year.toString());
+    _odomCtrl    = TextEditingController(text: v.odometer.toString());
+    _licenseCtrl = TextEditingController(text: v.licenseExpiry);
+    _insuranceCtrl = TextEditingController(text: v.insuranceExpiry);
+    _serviceKmCtrl = TextEditingController(text: v.serviceIntervalKm.toString());
+    _notesCtrl   = TextEditingController(text: v.notes ?? '');
   }
 
   @override
@@ -55,23 +56,21 @@ class _EditVehiclePageState extends State<EditVehiclePage> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _loading = true);
     try {
-      final endpoint = widget.vehicle.type == 'horse'
-          ? '/vehicles/horses/${widget.vehicle.id}/'
-          : '/vehicles/trailers/${widget.vehicle.id}/';
-
-      await sl<ApiClient>().dio.patch(endpoint, data: {
-        'registration_number': _regCtrl.text.trim(),
-        'make':                _makeCtrl.text.trim(),
-        'model':               _modelCtrl.text.trim(),
-        'year':                int.parse(_yearCtrl.text),
-        'odometer':            int.parse(_odomCtrl.text),
-        'license_expiry':      _licenseCtrl.text.trim(),
-        'insurance_expiry':    _insuranceCtrl.text.trim(),
-        'service_interval_km': int.parse(_serviceKmCtrl.text),
-        'status':              _status,
+      final odometer  = int.parse(_odomCtrl.text);
+      final serviceKm = int.parse(_serviceKmCtrl.text);
+      await _fs.db.collection('vehicles').doc(widget.vehicle.id).update({
+        'registration_number':  _regCtrl.text.trim(),
+        'make':                 _makeCtrl.text.trim(),
+        'model':                _modelCtrl.text.trim(),
+        'year':                 int.parse(_yearCtrl.text),
+        'odometer':             odometer,
+        'license_expiry':       _licenseCtrl.text.trim(),
+        'insurance_expiry':     _insuranceCtrl.text.trim(),
+        'service_interval_km':  serviceKm,
+        'next_service_km':      odometer + serviceKm,
+        'status':               _status,
         if (_notesCtrl.text.isNotEmpty) 'notes': _notesCtrl.text.trim(),
       });
-
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text('Vehicle updated successfully',
@@ -116,7 +115,6 @@ class _EditVehiclePageState extends State<EditVehiclePage> {
             child: Form(
               key: _formKey,
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                // Type badge
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
@@ -143,7 +141,6 @@ class _EditVehiclePageState extends State<EditVehiclePage> {
                 _field(_insuranceCtrl, 'Insurance expiry',      hint: 'YYYY-MM-DD', required: true),
                 _field(_serviceKmCtrl, 'Service interval (km)', isNum: true, required: true),
 
-                // Status dropdown
                 Padding(
                   padding: const EdgeInsets.only(bottom: 16),
                   child: DropdownButtonFormField<String>(

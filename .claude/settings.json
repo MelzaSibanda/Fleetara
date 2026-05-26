@@ -29,7 +29,10 @@
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://127.0.0.1:8000/api/users/)",
       "Bash(curl -s -w \"\\\\n%{http_code}\" http://127.0.0.1:8000/)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://127.0.0.1:8000/api/auth/)",
-      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://127.0.0.1:8000/api/auth/login/)"
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://127.0.0.1:8000/api/auth/login/)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\nkund\\\\OneDrive\\\\Documents\\\\GitHub\\\\Fleetara\\\\flutter_app\\\\fleet_app\\\\lib\" -Recurse -Force)",
+      "Bash(Select-Object FullName, PSIsContainer)",
+      "Bash(Format-Table -AutoSize)"
     ]
   }
 }

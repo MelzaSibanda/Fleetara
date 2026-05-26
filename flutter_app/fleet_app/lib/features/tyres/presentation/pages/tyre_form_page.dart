@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/service_locator.dart';
-import '../../../../core/network/api_client.dart';
+import '../../../../core/services/firestore_service.dart';
 
 class TyreFormPage extends StatefulWidget {
   final Map? tyre; // null = create, non-null = edit
@@ -15,15 +15,16 @@ class _TyreFormPageState extends State<TyreFormPage> {
   final _formKey = GlobalKey<FormState>();
   bool  _loading  = false;
   bool  _fetching = true;
+  final _fs = sl<FirestoreService>();
 
   List<Map<String, dynamic>> _horses   = [];
   List<Map<String, dynamic>> _trailers = [];
 
-  String _vehicleType  = 'horse';
-  int?   _selectedHorse;
-  int?   _selectedTrailer;
-  String _position  = 'steer_left';
-  String _condition = 'good';
+  String  _vehicleType     = 'horse';
+  String? _selectedHorse;
+  String? _selectedTrailer;
+  String  _position  = 'steer_left';
+  String  _condition = 'good';
 
   late TextEditingController _brandCtrl;
   late TextEditingController _sizeCtrl;
@@ -48,8 +49,8 @@ class _TyreFormPageState extends State<TyreFormPage> {
     _vehicleType     = t?['vehicle_type'] ?? 'horse';
     _position        = t?['position']     ?? 'steer_left';
     _condition       = t?['condition']    ?? 'good';
-    _selectedHorse   = t?['horse']   is Map ? t!['horse']['id']   : t?['horse'];
-    _selectedTrailer = t?['trailer'] is Map ? t!['trailer']['id'] : t?['trailer'];
+    _selectedHorse   = (t?['vehicle_type'] == 'horse')   ? (t!['vehicle_id'] as String?) : null;
+    _selectedTrailer = (t?['vehicle_type'] == 'trailer') ? (t!['vehicle_id'] as String?) : null;
 
     _brandCtrl     = TextEditingController(text: t?['brand']          ?? '');
     _sizeCtrl      = TextEditingController(text: t?['size']           ?? '');
@@ -71,21 +72,20 @@ class _TyreFormPageState extends State<TyreFormPage> {
   Future<void> _fetchVehicles() async {
     setState(() => _fetching = true);
     try {
-      final client  = sl<ApiClient>();
       final results = await Future.wait([
-        client.dio.get('/vehicles/horses/'),
-        client.dio.get('/vehicles/trailers/'),
+        _fs.db.collection('vehicles').where('type', isEqualTo: 'horse').get(),
+        _fs.db.collection('vehicles').where('type', isEqualTo: 'trailer').get(),
       ]);
-      final horseList   = (results[0].data['results'] ?? results[0].data) as List;
-      final trailerList = (results[1].data['results'] ?? results[1].data) as List;
       setState(() {
-        _horses   = horseList.map<Map<String, dynamic>>((h) => {
+        _horses   = _fs.docsToList(results[0]).map<Map<String, dynamic>>((h) => {
           'id':    h['id'],
           'label': '${h['registration_number']} — ${h['make']} ${h['model']}',
+          'reg':   h['registration_number'] ?? '',
         }).toList();
-        _trailers = trailerList.map<Map<String, dynamic>>((t) => {
+        _trailers = _fs.docsToList(results[1]).map<Map<String, dynamic>>((t) => {
           'id':    t['id'],
-          'label': '${t['registration_number']} (${t['trailer_type'] ?? 'trailer'})',
+          'label': '${t['registration_number']} (trailer)',
+          'reg':   t['registration_number'] ?? '',
         }).toList();
         _fetching = false;
       });
@@ -104,8 +104,15 @@ class _TyreFormPageState extends State<TyreFormPage> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _loading = true);
     try {
-      final body = <String, dynamic>{
+      final vehicleId  = _vehicleType == 'horse' ? _selectedHorse : _selectedTrailer;
+      final vehicles   = _vehicleType == 'horse' ? _horses : _trailers;
+      final vehicle    = vehicles.firstWhere((v) => v['id'] == vehicleId, orElse: () => {});
+      final vehicleReg = vehicle['reg'] ?? '';
+
+      final data = <String, dynamic>{
         'vehicle_type':  _vehicleType,
+        'vehicle_id':    vehicleId,
+        'vehicle_reg':   vehicleReg,
         'position':      _position,
         'condition':     _condition,
         'brand':         _brandCtrl.text.trim(),
@@ -113,15 +120,15 @@ class _TyreFormPageState extends State<TyreFormPage> {
         'serial_number': _serialCtrl.text.trim(),
         'installed_km':  int.parse(_installedCtrl.text),
         'km_lifespan':   int.parse(_lifespanCtrl.text),
+        'km_used':       0,
         'notes':         _notesCtrl.text.trim(),
       };
-      if (_vehicleType == 'horse')   body['horse']   = _selectedHorse;
-      if (_vehicleType == 'trailer') body['trailer'] = _selectedTrailer;
 
       if (_isEdit) {
-        await sl<ApiClient>().dio.patch('/tyres/${widget.tyre!['id']}/', data: body);
+        await _fs.db.collection('tyres').doc(widget.tyre!['id'] as String).update(data);
       } else {
-        await sl<ApiClient>().dio.post('/tyres/', data: body);
+        data['created_at'] = DateTime.now().toIso8601String();
+        await _fs.db.collection('tyres').add(data);
       }
 
       if (mounted) {
@@ -129,22 +136,12 @@ class _TyreFormPageState extends State<TyreFormPage> {
           content: Text(_isEdit ? 'Tyre updated' : 'Tyre added',
             style: const TextStyle(color: Colors.white)),
           backgroundColor: AppTheme.emerald, behavior: SnackBarBehavior.floating));
-        Navigator.pop(context, true); // return true = needs refresh
+        Navigator.pop(context, true);
       }
     } catch (e) {
       if (mounted) {
-        String msg = e.toString();
-        try {
-          final data = (e as dynamic).response?.data;
-          if (data is Map) {
-            msg = data.entries.map((en) {
-              final v = en.value;
-              return '${en.key}: ${v is List ? v.join(', ') : v}';
-            }).join('\n');
-          }
-        } catch (_) {}
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(msg, style: const TextStyle(color: Colors.white)),
+          content: Text('Error: $e', style: const TextStyle(color: Colors.white)),
           backgroundColor: AppTheme.rose, behavior: SnackBarBehavior.floating,
           duration: const Duration(seconds: 5)));
       }
@@ -179,7 +176,6 @@ class _TyreFormPageState extends State<TyreFormPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Vehicle type toggle
                         _sectionLabel('Vehicle type'),
                         Row(children: [
                           _typeBtn('horse',   'Horse',   Icons.local_shipping),
@@ -188,18 +184,17 @@ class _TyreFormPageState extends State<TyreFormPage> {
                         ]),
                         const SizedBox(height: 20),
 
-                        // Vehicle selector
                         _sectionLabel(_vehicleType == 'horse' ? 'Select horse' : 'Select trailer'),
                         if (_vehicleType == 'horse') ...[
                           if (_horses.isEmpty)
                             _noVehiclesHint('No active horses found. Add a horse first.')
                           else
-                            _dropdown<int>(
+                            _dropdown<String>(
                               label:     'Horse',
                               value:     _selectedHorse,
                               hint:      'Select horse',
-                              items:     _horses.map((h) => DropdownMenuItem<int>(
-                                value: h['id'] as int,
+                              items:     _horses.map((h) => DropdownMenuItem<String>(
+                                value: h['id'] as String,
                                 child: Text(h['label'] as String,
                                   overflow: TextOverflow.ellipsis))).toList(),
                               onChanged: (v) => setState(() => _selectedHorse = v),
@@ -209,12 +204,12 @@ class _TyreFormPageState extends State<TyreFormPage> {
                           if (_trailers.isEmpty)
                             _noVehiclesHint('No active trailers found. Add a trailer first.')
                           else
-                            _dropdown<int>(
+                            _dropdown<String>(
                               label:     'Trailer',
                               value:     _selectedTrailer,
                               hint:      'Select trailer',
-                              items:     _trailers.map((t) => DropdownMenuItem<int>(
-                                value: t['id'] as int,
+                              items:     _trailers.map((t) => DropdownMenuItem<String>(
+                                value: t['id'] as String,
                                 child: Text(t['label'] as String,
                                   overflow: TextOverflow.ellipsis))).toList(),
                               onChanged: (v) => setState(() => _selectedTrailer = v),
@@ -223,7 +218,6 @@ class _TyreFormPageState extends State<TyreFormPage> {
                         ],
                         const SizedBox(height: 4),
 
-                        // Position
                         _sectionLabel('Position on vehicle'),
                         _dropdown<String>(
                           label:     'Position',
@@ -234,7 +228,6 @@ class _TyreFormPageState extends State<TyreFormPage> {
                         ),
                         const SizedBox(height: 4),
 
-                        // Tyre details
                         _sectionLabel('Tyre details'),
                         Row(children: [
                           Expanded(child: _field(_brandCtrl, 'Brand', hint: 'e.g. Michelin')),
@@ -352,7 +345,7 @@ class _TyreFormPageState extends State<TyreFormPage> {
       child: DropdownButtonFormField<T>(
         initialValue: value,
         decoration: InputDecoration(labelText: label),
-        hint:       hint != null
+        hint: hint != null
             ? Text(hint, style: const TextStyle(fontSize: 12)) : null,
         items:      items,
         isExpanded: true,

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/service_locator.dart';
-import '../../../../core/network/api_client.dart';
+import '../../../../core/services/firestore_service.dart';
 import '../../../dashboard/presentation/widgets/app_shell.dart';
 import 'tyre_form_page.dart';
 
@@ -14,6 +14,7 @@ class _TyresPageState extends State<TyresPage> {
   List   _tyres   = [];
   bool   _loading = true;
   String _filter  = 'all';
+  final _fs = sl<FirestoreService>();
 
   static const _filters = ['all', 'good', 'worn', 'critical', 'replaced'];
 
@@ -23,9 +24,11 @@ class _TyresPageState extends State<TyresPage> {
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
-      final params = _filter != 'all' ? {'condition': _filter} : null;
-      final res    = await sl<ApiClient>().dio.get('/tyres/', queryParameters: params);
-      setState(() { _tyres = res.data['results'] ?? res.data; _loading = false; });
+      final snap = _filter == 'all'
+          ? await _fs.db.collection('tyres').get()
+          : await _fs.db.collection('tyres')
+              .where('condition', isEqualTo: _filter).get();
+      setState(() { _tyres = _fs.docsToList(snap); _loading = false; });
     } catch (_) { setState(() => _loading = false); }
   }
 
@@ -54,7 +57,7 @@ class _TyresPageState extends State<TyresPage> {
     );
     if (ok != true) return;
     try {
-      await sl<ApiClient>().dio.delete('/tyres/${tyre['id']}/');
+      await _fs.db.collection('tyres').doc(tyre['id'] as String).delete();
       _load();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -173,9 +176,6 @@ class _TyresPageState extends State<TyresPage> {
     .map((w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1)}').join(' ');
 }
 
-// ──────────────────────────────────────────────
-// Tyre Card
-// ──────────────────────────────────────────────
 class _TyreCard extends StatelessWidget {
   final Map          tyre;
   final VoidCallback onEdit;
@@ -214,15 +214,7 @@ class _TyreCard extends StatelessWidget {
     final lifespan    = (tyre['km_lifespan'] ?? 120000) as int;
     final kmUsed      = (tyre['km_used'] ?? 0) as int;
     final progress    = lifespan > 0 ? (kmUsed / lifespan).clamp(0.0, 1.0) : 0.0;
-
-    final horseData   = tyre['horse'];
-    final trailerData = tyre['trailer'];
-    String vehicleLabel = '—';
-    if (horseData is Map) {
-      vehicleLabel = horseData['registration_number'] ?? 'Horse';
-    } else if (trailerData is Map) {
-      vehicleLabel = trailerData['registration_number'] ?? 'Trailer';
-    }
+    final vehicleLabel = tyre['vehicle_reg'] ?? '—';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),

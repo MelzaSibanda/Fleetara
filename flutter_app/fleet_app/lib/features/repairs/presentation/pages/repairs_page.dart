@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/service_locator.dart';
-import '../../../../core/network/api_client.dart';
+import '../../../../core/services/firestore_service.dart';
 import '../../../dashboard/presentation/widgets/app_shell.dart';
 import '../../../../core/utils/responsive.dart';
 
@@ -15,6 +15,7 @@ class _RepairsPageState extends State<RepairsPage> {
   List   _repairs = [];
   bool   _loading = true;
   String _filter  = 'all';
+  final _fs = sl<FirestoreService>();
 
   static const _filters = ['all', 'critical', 'in_progress', 'resolved'];
 
@@ -24,9 +25,14 @@ class _RepairsPageState extends State<RepairsPage> {
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
-      final params = _filter != 'all' ? {'priority': _filter} : null;
-      final res = await sl<ApiClient>().dio.get('/repairs/', queryParameters: params);
-      setState(() { _repairs = res.data['results'] ?? res.data; _loading = false; });
+      var query = _fs.db.collection('repairs').orderBy('reported_at', descending: true);
+      final snap = _filter == 'all'
+          ? await query.get()
+          : await _fs.db.collection('repairs')
+              .where('priority', isEqualTo: _filter)
+              .orderBy('reported_at', descending: true)
+              .get();
+      setState(() { _repairs = _fs.docsToList(snap); _loading = false; });
     } catch (_) { setState(() => _loading = false); }
   }
 
@@ -65,7 +71,6 @@ class _RepairsPageState extends State<RepairsPage> {
         const SizedBox(width: 8),
       ],
       child: Column(children: [
-        // Filter chips
         Container(
           color: AppTheme.surface,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -84,22 +89,19 @@ class _RepairsPageState extends State<RepairsPage> {
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
                         color: active ? AppTheme.primary.withValues(alpha: 0.4) : AppTheme.border,
-                        width: 0.5,
-                      ),
+                        width: 0.5),
                     ),
                     child: Text(_filterLabel(f),
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: active ? FontWeight.w500 : FontWeight.w400,
-                        color: active ? AppTheme.primary : AppTheme.textMuted,
-                      )),
+                        color: active ? AppTheme.primary : AppTheme.textMuted)),
                   ),
                 ),
               );
             }).toList()),
           ),
         ),
-        // List
         Expanded(
           child: _loading
             ? const Center(child: CircularProgressIndicator(color: AppTheme.primary, strokeWidth: 2))
@@ -156,7 +158,6 @@ class _RepairCardExpanded extends StatelessWidget {
         border: Border.all(color: priorityColor.withValues(alpha: 0.3), width: 0.5),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        // Header
         Row(children: [
           Container(
             width: 36, height: 36,
@@ -184,7 +185,6 @@ class _RepairCardExpanded extends StatelessWidget {
           style: const TextStyle(fontSize: 12, color: AppTheme.textMuted),
           maxLines: 3, overflow: TextOverflow.ellipsis),
         const SizedBox(height: 14),
-        // Timeline
         _TimelineDot(
           color: AppTheme.rose,
           icon:  Icons.flag_outlined,
@@ -200,7 +200,6 @@ class _RepairCardExpanded extends StatelessWidget {
           isLast: true,
         ),
         const SizedBox(height: 12),
-        // Actions
         Row(children: [
           Expanded(
             child: ElevatedButton(
@@ -236,11 +235,11 @@ class _RepairCardExpanded extends StatelessWidget {
 }
 
 class _TimelineDot extends StatelessWidget {
-  final Color  color;
+  final Color    color;
   final IconData icon;
-  final String title;
-  final String time;
-  final bool   isLast;
+  final String   title;
+  final String   time;
+  final bool     isLast;
   const _TimelineDot({required this.color, required this.icon, required this.title,
     required this.time, required this.isLast});
 
@@ -255,7 +254,8 @@ class _TimelineDot extends StatelessWidget {
             child: Icon(icon, color: color, size: 12),
           ),
           if (!isLast)
-            Expanded(child: Container(width: 1, color: AppTheme.border, margin: const EdgeInsets.symmetric(vertical: 2))),
+            Expanded(child: Container(width: 1, color: AppTheme.border,
+              margin: const EdgeInsets.symmetric(vertical: 2))),
         ]),
         const SizedBox(width: 10),
         Expanded(child: Padding(

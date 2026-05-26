@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/service_locator.dart';
-import '../../../../core/network/api_client.dart';
+import '../../../../core/services/firestore_service.dart';
 import '../../../dashboard/presentation/widgets/app_shell.dart';
 
 class InvoicesPage extends StatefulWidget {
@@ -14,6 +14,10 @@ class _InvoicesPageState extends State<InvoicesPage> {
   List   _invoices = [];
   bool   _loading  = true;
   String _filter   = 'all';
+  double _revenue  = 0;
+  double _expenses = 0;
+  double _outstanding = 0;
+  final _fs = sl<FirestoreService>();
 
   static const _filters = ['all', 'receivable', 'payable', 'overdue'];
 
@@ -23,9 +27,43 @@ class _InvoicesPageState extends State<InvoicesPage> {
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
-      final params = _filter != 'all' ? {'type': _filter} : null;
-      final res = await sl<ApiClient>().dio.get('/invoices/', queryParameters: params);
-      setState(() { _invoices = res.data['results'] ?? res.data; _loading = false; });
+      final snap = await _fs.db.collection('invoices')
+          .orderBy('created_at', descending: true)
+          .get();
+      final all = _fs.docsToList(snap);
+
+      double revenue = 0, expenses = 0, outstanding = 0;
+      for (final inv in all) {
+        final total = (inv['total'] as num?)?.toDouble() ?? 0;
+        if (inv['invoice_type'] == 'receivable') {
+          if (inv['status'] == 'paid') {
+            revenue += total;
+          } else if (inv['status'] != 'cancelled') {
+            outstanding += total;
+          }
+        } else if (inv['invoice_type'] == 'payable') {
+          if (inv['status'] == 'paid') {
+            expenses += total;
+          }
+        }
+      }
+
+      List filtered = all;
+      if (_filter == 'receivable') {
+        filtered = all.where((i) => i['invoice_type'] == 'receivable').toList();
+      } else if (_filter == 'payable') {
+        filtered = all.where((i) => i['invoice_type'] == 'payable').toList();
+      } else if (_filter == 'overdue') {
+        filtered = all.where((i) => i['status'] == 'overdue').toList();
+      }
+
+      setState(() {
+        _invoices    = filtered;
+        _revenue     = revenue;
+        _expenses    = expenses;
+        _outstanding = outstanding;
+        _loading     = false;
+      });
     } catch (_) { setState(() => _loading = false); }
   }
 
@@ -70,7 +108,6 @@ class _InvoicesPageState extends State<InvoicesPage> {
         const SizedBox(width: 8),
       ],
       child: Column(children: [
-        // Net profit hero
         Container(
           margin: const EdgeInsets.all(16),
           padding: const EdgeInsets.all(16),
@@ -82,17 +119,16 @@ class _InvoicesPageState extends State<InvoicesPage> {
             const Text('Net profit (MTD)',
               style: TextStyle(fontSize: 11, color: Colors.white70)),
             const SizedBox(height: 4),
-            const Text('R —',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w500, color: Colors.white)),
+            Text('R ${(_revenue - _expenses).toStringAsFixed(0)}',
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w500, color: Colors.white)),
             const SizedBox(height: 12),
-            Row(children: const [
-              _HeroStat(label: 'Revenue',     value: 'R —'),
-              _HeroStat(label: 'Expenses',    value: 'R —'),
-              _HeroStat(label: 'Outstanding', value: 'R —'),
+            Row(children: [
+              _HeroStat(label: 'Revenue',     value: 'R ${_revenue.toStringAsFixed(0)}'),
+              _HeroStat(label: 'Expenses',    value: 'R ${_expenses.toStringAsFixed(0)}'),
+              _HeroStat(label: 'Outstanding', value: 'R ${_outstanding.toStringAsFixed(0)}'),
             ]),
           ]),
         ),
-        // Filter chips
         Container(
           color: AppTheme.surface,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -111,22 +147,19 @@ class _InvoicesPageState extends State<InvoicesPage> {
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
                         color: active ? AppTheme.primary.withValues(alpha: 0.4) : AppTheme.border,
-                        width: 0.5,
-                      ),
+                        width: 0.5),
                     ),
                     child: Text(_filterLabel(f),
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: active ? FontWeight.w500 : FontWeight.w400,
-                        color: active ? AppTheme.primary : AppTheme.textMuted,
-                      )),
+                        color: active ? AppTheme.primary : AppTheme.textMuted)),
                   ),
                 ),
               );
             }).toList()),
           ),
         ),
-        // Invoice list
         Expanded(
           child: _loading
             ? const Center(child: CircularProgressIndicator(color: AppTheme.primary, strokeWidth: 2))
@@ -211,7 +244,7 @@ class _InvoiceRow extends StatelessWidget {
             style: const TextStyle(fontSize: 11, color: AppTheme.textMuted)),
         ])),
         Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-          Text('R ${inv['total'] ?? '—'}',
+          Text('R ${inv['total'] ?? inv['subtotal'] ?? '—'}',
             style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppTheme.textPrimary)),
           const SizedBox(height: 4),
           Container(

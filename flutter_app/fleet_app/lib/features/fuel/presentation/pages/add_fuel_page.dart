@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/service_locator.dart';
-import '../../../../core/network/api_client.dart';
-import '../../../../core/utils/responsive.dart';
+import '../../../../core/services/firestore_service.dart';
 
 class AddFuelPage extends StatefulWidget {
   const AddFuelPage({super.key});
@@ -11,41 +10,79 @@ class AddFuelPage extends StatefulWidget {
 }
 
 class _AddFuelPageState extends State<AddFuelPage> {
-  final _formKey      = GlobalKey<FormState>();
-  bool  _loading      = false;
-  String _fuelType    = 'diesel';
+  final _formKey    = GlobalKey<FormState>();
+  bool  _loading    = false;
+  bool  _fetching   = true;
+  String _fuelType  = 'diesel';
+  final _fs = sl<FirestoreService>();
 
-  final _tripCtrl     = TextEditingController();
-  final _horseCtrl    = TextEditingController();
+  List<Map<String, dynamic>> _horses = [];
+  String? _selectedHorse;
+  String? _selectedHorseReg;
+
   final _litersCtrl   = TextEditingController();
   final _costCtrl     = TextEditingController();
   final _odomCtrl     = TextEditingController();
   final _stationCtrl  = TextEditingController();
   final _locationCtrl = TextEditingController();
 
+  @override
+  void initState() {
+    super.initState();
+    _fetchVehicles();
+  }
+
+  @override
+  void dispose() {
+    _litersCtrl.dispose(); _costCtrl.dispose(); _odomCtrl.dispose();
+    _stationCtrl.dispose(); _locationCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _fetchVehicles() async {
+    try {
+      final snap = await _fs.db.collection('vehicles')
+          .where('type', isEqualTo: 'horse').get();
+      setState(() {
+        _horses = _fs.docsToList(snap).map<Map<String, dynamic>>((h) => {
+          'id':    h['id'],
+          'label': '${h['registration_number']} — ${h['make']} ${h['model']}',
+          'reg':   h['registration_number'] ?? '',
+        }).toList();
+        _fetching = false;
+      });
+    } catch (_) {
+      setState(() => _fetching = false);
+    }
+  }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _loading = true);
     try {
-      await sl<ApiClient>().dio.post('/fuel/', data: {
-        'trip':         int.parse(_tripCtrl.text),
-        'horse':        int.parse(_horseCtrl.text),
-        'fuel_type':    _fuelType,
-        'liters':       double.parse(_litersCtrl.text),
-        'cost':         double.parse(_costCtrl.text),
-        'odometer':     int.parse(_odomCtrl.text),
-        'fuel_station': _stationCtrl.text.trim(),
-        'location':     _locationCtrl.text.trim(),
+      await _fs.db.collection('fuel_entries').add({
+        'horse_id':            _selectedHorse,
+        'vehicle_registration': _selectedHorseReg ?? '',
+        'fuel_type':           _fuelType,
+        'liters':              double.parse(_litersCtrl.text),
+        'cost':                double.parse(_costCtrl.text),
+        'odometer':            int.parse(_odomCtrl.text),
+        'fuel_station':        _stationCtrl.text.trim(),
+        'location':            _locationCtrl.text.trim(),
+        'created_at':          DateTime.now().toIso8601String(),
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Fuel entry logged!'), backgroundColor: AppTheme.success));
+          content: Text('Fuel entry logged!',
+            style: TextStyle(color: Colors.white)),
+          backgroundColor: AppTheme.emerald, behavior: SnackBarBehavior.floating));
         context.go('/fuel');
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: AppTheme.error));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Error: $e', style: const TextStyle(color: Colors.white)),
+          backgroundColor: AppTheme.rose, behavior: SnackBarBehavior.floating));
       }
     } finally {
       setState(() => _loading = false);
@@ -55,49 +92,81 @@ class _AddFuelPageState extends State<AddFuelPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Log Fuel Stop')),
-      body: SingleChildScrollView(
-        padding: Responsive.pagePadding(context),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 600),
-          child: Form(
-            key: _formKey,
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              _field(_tripCtrl,  'Trip ID',          isNum: true),
-              _field(_horseCtrl, 'Horse (Truck) ID', isNum: true),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 16),
-                child: DropdownButtonFormField<String>(
-                  initialValue: _fuelType,
-                  decoration: const InputDecoration(labelText: 'Fuel type'),
-                  items: const [
-                    DropdownMenuItem(value: 'diesel', child: Text('Diesel')),
-                    DropdownMenuItem(value: 'petrol', child: Text('Petrol')),
-                    DropdownMenuItem(value: 'adblue', child: Text('AdBlue')),
-                  ],
-                  onChanged: (v) => setState(() => _fuelType = v!),
-                ),
-              ),
-              Row(children: [
-                Expanded(child: _field(_litersCtrl, 'Litres',   isNum: true)),
-                const SizedBox(width: 12),
-                Expanded(child: _field(_costCtrl,   'Cost (R)', isNum: true)),
-              ]),
-              _field(_odomCtrl,    'Odometer (km)',    isNum: true),
-              _field(_stationCtrl, 'Fuel station name', required: false),
-              _field(_locationCtrl,'Location',          required: false),
-              const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: _loading ? null : _submit,
-                child: _loading
-                  ? const SizedBox(height: 20, width: 20,
-                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                  : const Text('Save Fuel Entry'),
-              ),
-            ]),
-          ),
+      backgroundColor: AppTheme.background,
+      appBar: AppBar(
+        title: const Text('Log Fuel Stop'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.go('/fuel'),
         ),
       ),
+      body: _fetching
+        ? const Center(child: CircularProgressIndicator(color: AppTheme.primary))
+        : SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 600),
+                child: Form(
+                  key: _formKey,
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: DropdownButtonFormField<String>(
+                        initialValue: _selectedHorse,
+                        decoration: const InputDecoration(labelText: 'Horse (Truck)'),
+                        hint: Text(
+                          _horses.isEmpty ? 'No horses available' : 'Select horse',
+                          style: const TextStyle(fontSize: 12)),
+                        items: _horses.map((h) => DropdownMenuItem<String>(
+                          value: h['id'] as String,
+                          child: Text(h['label'] as String, overflow: TextOverflow.ellipsis),
+                        )).toList(),
+                        isExpanded: true,
+                        onChanged: _horses.isEmpty ? null : (v) {
+                          final h = _horses.firstWhere((h) => h['id'] == v);
+                          setState(() {
+                            _selectedHorse    = v;
+                            _selectedHorseReg = h['reg'] as String;
+                          });
+                        },
+                        validator: (_) => _selectedHorse == null ? 'Select a vehicle' : null,
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: DropdownButtonFormField<String>(
+                        initialValue: _fuelType,
+                        decoration: const InputDecoration(labelText: 'Fuel type'),
+                        items: const [
+                          DropdownMenuItem(value: 'diesel', child: Text('Diesel')),
+                          DropdownMenuItem(value: 'petrol', child: Text('Petrol')),
+                          DropdownMenuItem(value: 'adblue', child: Text('AdBlue')),
+                        ],
+                        onChanged: (v) => setState(() => _fuelType = v!),
+                      ),
+                    ),
+                    Row(children: [
+                      Expanded(child: _field(_litersCtrl, 'Litres',   isNum: true)),
+                      const SizedBox(width: 12),
+                      Expanded(child: _field(_costCtrl,   'Cost (R)', isNum: true)),
+                    ]),
+                    _field(_odomCtrl,     'Odometer (km)',     isNum: true),
+                    _field(_stationCtrl,  'Fuel station name', required: false),
+                    _field(_locationCtrl, 'Location',          required: false),
+                    const SizedBox(height: 8),
+                    ElevatedButton(
+                      onPressed: _loading ? null : _submit,
+                      child: _loading
+                        ? const SizedBox(height: 20, width: 20,
+                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                        : const Text('Save Fuel Entry'),
+                    ),
+                  ]),
+                ),
+              ),
+            ),
+          ),
     );
   }
 

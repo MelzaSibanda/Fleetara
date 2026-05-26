@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/service_locator.dart';
-import '../../../../core/network/api_client.dart';
+import '../../../../core/services/firestore_service.dart';
 import '../../data/trip_model.dart';
 
 class EditTripPage extends StatefulWidget {
@@ -16,15 +16,16 @@ class _EditTripPageState extends State<EditTripPage> {
   final _formKey  = GlobalKey<FormState>();
   bool  _loading  = false;
   bool  _fetching = true;
+  final _fs = sl<FirestoreService>();
 
   List<Map<String, dynamic>> _horses   = [];
   List<Map<String, dynamic>> _trailers = [];
   List<Map<String, dynamic>> _drivers  = [];
 
-  int?   _selectedHorse;
-  int?   _selectedTrailer;
-  int?   _selectedDriver;
-  String _cargoType = 'general';
+  String? _selectedHorse;
+  String? _selectedTrailer;
+  String? _selectedDriver;
+  String  _cargoType = 'general';
 
   late final TextEditingController _clientCtrl;
   late final TextEditingController _originCtrl;
@@ -36,7 +37,7 @@ class _EditTripPageState extends State<EditTripPage> {
   @override
   void initState() {
     super.initState();
-    final t  = widget.trip;
+    final t          = widget.trip;
     _cargoType       = t.cargoType;
     _selectedHorse   = t.horseId;
     _selectedTrailer = t.trailerId;
@@ -65,30 +66,28 @@ class _EditTripPageState extends State<EditTripPage> {
 
   Future<void> _fetchDropdownData() async {
     try {
-      final client  = sl<ApiClient>();
       final results = await Future.wait([
-        client.dio.get('/vehicles/horses/'),
-        client.dio.get('/vehicles/trailers/'),
-        client.dio.get('/auth/users/?role=driver'),
+        _fs.db.collection('vehicles').where('type', isEqualTo: 'horse').get(),
+        _fs.db.collection('vehicles').where('type', isEqualTo: 'trailer').get(),
+        _fs.db.collection('users').where('role', isEqualTo: 'driver').get(),
       ]);
-      final horses   = (results[0].data['results'] ?? results[0].data) as List;
-      final trailers = (results[1].data['results'] ?? results[1].data) as List;
-      final drivers  = (results[2].data['results'] ?? results[2].data) as List;
-
       setState(() {
-        _horses = horses.map<Map<String, dynamic>>((h) => {
+        _horses = _fs.docsToList(results[0]).map<Map<String, dynamic>>((h) => {
           'id':    h['id'],
           'label': '${h['registration_number']} — ${h['make']} ${h['model']}',
+          'reg':   h['registration_number'] ?? '',
         }).toList();
-        _trailers = trailers.map<Map<String, dynamic>>((t) => {
+        _trailers = _fs.docsToList(results[1]).map<Map<String, dynamic>>((t) => {
           'id':    t['id'],
-          'label': '${t['registration_number']} (${t['trailer_type'] ?? 'trailer'})',
+          'label': '${t['registration_number']} (trailer)',
+          'reg':   t['registration_number'] ?? '',
         }).toList();
-        _drivers = drivers.map<Map<String, dynamic>>((d) => {
+        _drivers = _fs.docsToList(results[2]).map<Map<String, dynamic>>((d) => {
           'id':    d['id'],
           'label': '${d['first_name']} ${d['last_name']}'.trim().isNotEmpty
               ? '${d['first_name']} ${d['last_name']}'.trim()
-              : d['username'],
+              : d['email'] ?? '',
+          'name':  '${d['first_name']} ${d['last_name']}'.trim(),
         }).toList();
         _fetching = false;
       });
@@ -100,7 +99,6 @@ class _EditTripPageState extends State<EditTripPage> {
   Future<void> _pickDateTime() async {
     DateTime initial = DateTime.now();
     try {
-      // Try to parse existing date
       final raw = widget.trip.scheduledStart;
       initial = DateTime.parse(raw.contains('T') ? raw : raw.replaceAll(' ', 'T'));
     } catch (_) {}
@@ -135,19 +133,24 @@ class _EditTripPageState extends State<EditTripPage> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _loading = true);
     try {
-      // Convert display date back to ISO format
       final rawDate = _dateCtrl.text.trim().replaceAll(' ', 'T');
+      final horse   = _horses.firstWhere((h) => h['id'] == _selectedHorse, orElse: () => {});
+      final trailer = _trailers.firstWhere((t) => t['id'] == _selectedTrailer, orElse: () => {});
+      final driver  = _drivers.firstWhere((d) => d['id'] == _selectedDriver, orElse: () => {});
 
-      await sl<ApiClient>().dio.patch('/trips/${widget.trip.id}/', data: {
+      await _fs.db.collection('trips').doc(widget.trip.id).update({
         'client_name':       _clientCtrl.text.trim(),
         'origin':            _originCtrl.text.trim(),
         'destination':       _destCtrl.text.trim(),
         'cargo_description': _cargoCtrl.text.trim(),
         'cargo_type':        _cargoType,
         'scheduled_start':   rawDate,
-        'horse':             _selectedHorse,
-        'trailer':           _selectedTrailer,
-        'driver':            _selectedDriver,
+        'horse_id':          _selectedHorse,
+        'horse_reg':         horse['reg'] ?? '',
+        'trailer_id':        _selectedTrailer,
+        'trailer_reg':       trailer['reg'] ?? '',
+        'driver_id':         _selectedDriver,
+        'driver_name':       driver['name'] ?? '',
         'notes':             _notesCtrl.text.trim(),
       });
       if (mounted) {
@@ -158,18 +161,8 @@ class _EditTripPageState extends State<EditTripPage> {
       }
     } catch (e) {
       if (mounted) {
-        String msg = e.toString();
-        try {
-          final data = (e as dynamic).response?.data;
-          if (data is Map) {
-            msg = data.entries.map((en) {
-              final v = en.value;
-              return '${en.key}: ${v is List ? v.join(', ') : v}';
-            }).join('\n');
-          }
-        } catch (_) {}
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(msg, style: const TextStyle(color: Colors.white)),
+          content: Text('Error: $e', style: const TextStyle(color: Colors.white)),
           backgroundColor: AppTheme.rose, behavior: SnackBarBehavior.floating,
           duration: const Duration(seconds: 5)));
       }
@@ -183,7 +176,7 @@ class _EditTripPageState extends State<EditTripPage> {
     return Scaffold(
       backgroundColor: AppTheme.background,
       appBar: AppBar(
-        title: Text('Edit Trip #${widget.trip.id}'),
+        title: const Text('Edit Trip'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
@@ -205,7 +198,6 @@ class _EditTripPageState extends State<EditTripPage> {
                     _field(_destCtrl,   'Destination'),
                     _field(_cargoCtrl,  'Cargo description'),
 
-                    // Cargo type
                     _dropdown<String>(
                       label:  'Cargo type',
                       value:  _cargoType,
@@ -220,7 +212,6 @@ class _EditTripPageState extends State<EditTripPage> {
                       onChanged: (v) => setState(() => _cargoType = v!),
                     ),
 
-                    // Date picker
                     Padding(
                       padding: const EdgeInsets.only(bottom: 16),
                       child: TextFormField(
@@ -237,46 +228,39 @@ class _EditTripPageState extends State<EditTripPage> {
 
                     _section('Assignment'),
 
-                    // Horse
-                    _dropdown<int>(
+                    _dropdown<String>(
                       label:     'Horse (Truck)',
                       value:     _selectedHorse,
                       hint:      'Select horse',
-                      items:     _horses.map((h) => DropdownMenuItem<int>(
-                        value: h['id'] as int,
-                        child: Text(h['label'] as String,
-                          overflow: TextOverflow.ellipsis))).toList(),
+                      items:     _horses.map((h) => DropdownMenuItem<String>(
+                        value: h['id'] as String,
+                        child: Text(h['label'] as String, overflow: TextOverflow.ellipsis))).toList(),
                       onChanged: (v) => setState(() => _selectedHorse = v),
                       validator: (_) => _selectedHorse == null ? 'Select a horse' : null,
                     ),
 
-                    // Trailer
-                    _dropdown<int>(
+                    _dropdown<String>(
                       label:     'Trailer',
                       value:     _selectedTrailer,
                       hint:      'Select trailer',
-                      items:     _trailers.map((t) => DropdownMenuItem<int>(
-                        value: t['id'] as int,
-                        child: Text(t['label'] as String,
-                          overflow: TextOverflow.ellipsis))).toList(),
+                      items:     _trailers.map((t) => DropdownMenuItem<String>(
+                        value: t['id'] as String,
+                        child: Text(t['label'] as String, overflow: TextOverflow.ellipsis))).toList(),
                       onChanged: (v) => setState(() => _selectedTrailer = v),
                       validator: (_) => _selectedTrailer == null ? 'Select a trailer' : null,
                     ),
 
-                    // Driver
-                    _dropdown<int>(
+                    _dropdown<String>(
                       label:     'Driver',
                       value:     _selectedDriver,
                       hint:      'Select driver',
-                      items:     _drivers.map((d) => DropdownMenuItem<int>(
-                        value: d['id'] as int,
-                        child: Text(d['label'] as String,
-                          overflow: TextOverflow.ellipsis))).toList(),
+                      items:     _drivers.map((d) => DropdownMenuItem<String>(
+                        value: d['id'] as String,
+                        child: Text(d['label'] as String, overflow: TextOverflow.ellipsis))).toList(),
                       onChanged: (v) => setState(() => _selectedDriver = v),
                       validator: (_) => _selectedDriver == null ? 'Select a driver' : null,
                     ),
 
-                    // Notes
                     Padding(
                       padding: const EdgeInsets.only(bottom: 24),
                       child: TextFormField(
@@ -290,8 +274,7 @@ class _EditTripPageState extends State<EditTripPage> {
                       onPressed: _loading ? null : _save,
                       child: _loading
                         ? const SizedBox(height: 18, width: 18,
-                            child: CircularProgressIndicator(
-                              color: Colors.white, strokeWidth: 2))
+                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                         : const Text('Save changes'),
                     ),
                   ]),
@@ -330,8 +313,7 @@ class _EditTripPageState extends State<EditTripPage> {
       child: DropdownButtonFormField<T>(
         initialValue: value,
         decoration:  InputDecoration(labelText: label),
-        hint:        hint != null ? Text(hint,
-          style: const TextStyle(fontSize: 12)) : null,
+        hint:        hint != null ? Text(hint, style: const TextStyle(fontSize: 12)) : null,
         items:       items,
         isExpanded:  true,
         onChanged:   onChanged,

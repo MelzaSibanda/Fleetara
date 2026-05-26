@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/service_locator.dart';
-import '../../../../core/network/api_client.dart';
+import '../../../../core/services/firestore_service.dart';
 
 class AddTripPage extends StatefulWidget {
   const AddTripPage({super.key});
@@ -13,17 +13,16 @@ class _AddTripPageState extends State<AddTripPage> {
   final _formKey = GlobalKey<FormState>();
   bool _loading  = false;
   bool _fetching = true;
+  final _fs = sl<FirestoreService>();
 
-  // Dropdown data
   List<Map<String, dynamic>> _horses   = [];
   List<Map<String, dynamic>> _trailers = [];
   List<Map<String, dynamic>> _drivers  = [];
 
-  // Selected values
-  int?   _selectedHorse;
-  int?   _selectedTrailer;
-  int?   _selectedDriver;
-  String _cargoType = 'general';
+  String? _selectedHorse;
+  String? _selectedTrailer;
+  String? _selectedDriver;
+  String  _cargoType = 'general';
 
   final _clientCtrl = TextEditingController();
   final _originCtrl = TextEditingController();
@@ -39,41 +38,37 @@ class _AddTripPageState extends State<AddTripPage> {
 
   @override
   void dispose() {
-    _clientCtrl.dispose();
-    _originCtrl.dispose();
-    _destCtrl.dispose();
-    _cargoCtrl.dispose();
+    _clientCtrl.dispose(); _originCtrl.dispose();
+    _destCtrl.dispose();   _cargoCtrl.dispose();
     _dateCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _fetchDropdownData() async {
     try {
-      final client = sl<ApiClient>();
       final results = await Future.wait([
-        client.dio.get('/vehicles/horses/'),
-        client.dio.get('/vehicles/trailers/'),
-        client.dio.get('/auth/users/?role=driver'),
+        _fs.db.collection('vehicles').where('type', isEqualTo: 'horse').where('status', isEqualTo: 'active').get(),
+        _fs.db.collection('vehicles').where('type', isEqualTo: 'trailer').where('status', isEqualTo: 'active').get(),
+        _fs.db.collection('users').where('role', isEqualTo: 'driver').get(),
       ]);
 
-      final horses   = (results[0].data['results'] ?? results[0].data) as List;
-      final trailers = (results[1].data['results'] ?? results[1].data) as List;
-      final drivers  = (results[2].data['results'] ?? results[2].data) as List;
-
       setState(() {
-        _horses   = horses.where((h) => h['status'] == 'active').map<Map<String, dynamic>>((h) => {
+        _horses   = _fs.docsToList(results[0]).map<Map<String, dynamic>>((h) => {
           'id':    h['id'],
           'label': '${h['registration_number']} — ${h['make']} ${h['model']}',
+          'reg':   h['registration_number'] ?? '',
         }).toList();
-        _trailers = trailers.where((t) => t['status'] == 'active').map<Map<String, dynamic>>((t) => {
+        _trailers = _fs.docsToList(results[1]).map<Map<String, dynamic>>((t) => {
           'id':    t['id'],
-          'label': '${t['registration_number']} (${t['trailer_type'] ?? 'trailer'})',
+          'label': '${t['registration_number']} (trailer)',
+          'reg':   t['registration_number'] ?? '',
         }).toList();
-        _drivers  = drivers.map<Map<String, dynamic>>((d) => {
+        _drivers  = _fs.docsToList(results[2]).map<Map<String, dynamic>>((d) => {
           'id':    d['id'],
           'label': '${d['first_name']} ${d['last_name']}'.trim().isNotEmpty
               ? '${d['first_name']} ${d['last_name']}'.trim()
-              : d['username'],
+              : d['email'] ?? '',
+          'name':  '${d['first_name']} ${d['last_name']}'.trim(),
         }).toList();
         _fetching = false;
       });
@@ -83,8 +78,7 @@ class _AddTripPageState extends State<AddTripPage> {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('Failed to load form data: $e',
             style: const TextStyle(color: Colors.white)),
-          backgroundColor: AppTheme.rose,
-          behavior: SnackBarBehavior.floating,
+          backgroundColor: AppTheme.rose, behavior: SnackBarBehavior.floating,
         ));
       }
     }
@@ -98,25 +92,21 @@ class _AddTripPageState extends State<AddTripPage> {
       lastDate: DateTime.now().add(const Duration(days: 365)),
       builder: (ctx, child) => Theme(
         data: Theme.of(ctx).copyWith(
-          colorScheme: const ColorScheme.light(primary: AppTheme.primary),
-        ),
+          colorScheme: const ColorScheme.light(primary: AppTheme.primary)),
         child: child!,
       ),
     );
     if (date == null || !mounted) return;
-
     final time = await showTimePicker(
       context: context,
       initialTime: const TimeOfDay(hour: 8, minute: 0),
       builder: (ctx, child) => Theme(
         data: Theme.of(ctx).copyWith(
-          colorScheme: const ColorScheme.light(primary: AppTheme.primary),
-        ),
+          colorScheme: const ColorScheme.light(primary: AppTheme.primary)),
         child: child!,
       ),
     );
     if (time == null) return;
-
     final dt = DateTime(date.year, date.month, date.day, time.hour, time.minute);
     _dateCtrl.text = dt.toIso8601String();
     setState(() {});
@@ -126,47 +116,42 @@ class _AddTripPageState extends State<AddTripPage> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _loading = true);
     try {
-      await sl<ApiClient>().dio.post('/trips/', data: {
-        'client_name':       _clientCtrl.text.trim(),
-        'origin':            _originCtrl.text.trim(),
-        'destination':       _destCtrl.text.trim(),
-        'cargo_description': _cargoCtrl.text.trim(),
-        'cargo_type':        _cargoType,
-        'scheduled_start':   _dateCtrl.text.trim(),
-        'horse':             _selectedHorse,
-        'trailer':           _selectedTrailer,
-        'driver':            _selectedDriver,
-        'status':            'scheduled',
+      final horse   = _horses.firstWhere((h) => h['id'] == _selectedHorse,
+          orElse: () => {});
+      final trailer = _trailers.firstWhere((t) => t['id'] == _selectedTrailer,
+          orElse: () => {});
+      final driver  = _drivers.firstWhere((d) => d['id'] == _selectedDriver,
+          orElse: () => {});
+
+      await _fs.db.collection('trips').add({
+        'client_name':        _clientCtrl.text.trim(),
+        'origin':             _originCtrl.text.trim(),
+        'destination':        _destCtrl.text.trim(),
+        'cargo_description':  _cargoCtrl.text.trim(),
+        'cargo_type':         _cargoType,
+        'scheduled_start':    _dateCtrl.text.trim(),
+        'horse_id':           _selectedHorse,
+        'horse_reg':          horse['reg'] ?? '',
+        'trailer_id':         _selectedTrailer,
+        'trailer_reg':        trailer['reg'] ?? '',
+        'driver_id':          _selectedDriver,
+        'driver_name':        driver['name'] ?? '',
+        'status':             'scheduled',
+        'created_at':         DateTime.now().toIso8601String(),
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text('Trip created successfully',
             style: TextStyle(color: Colors.white)),
-          backgroundColor: AppTheme.emerald,
-          behavior: SnackBarBehavior.floating,
+          backgroundColor: AppTheme.emerald, behavior: SnackBarBehavior.floating,
         ));
         context.go('/trips');
       }
     } catch (e) {
       if (mounted) {
-        // Extract DRF validation messages
-        String msg = e.toString();
-        try {
-          final dioErr = e as dynamic;
-          final data   = dioErr.response?.data;
-          if (data is Map) {
-            msg = data.entries.map((entry) {
-              final v = entry.value;
-              final field = entry.key == 'non_field_errors' ? '' : '${entry.key}: ';
-              return '$field${v is List ? v.join(', ') : v}';
-            }).join('\n');
-          }
-        } catch (_) {}
-
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(msg, style: const TextStyle(color: Colors.white)),
-          backgroundColor: AppTheme.rose,
-          behavior: SnackBarBehavior.floating,
+          content: Text('Error: $e', style: const TextStyle(color: Colors.white)),
+          backgroundColor: AppTheme.rose, behavior: SnackBarBehavior.floating,
           duration: const Duration(seconds: 5),
         ));
       }
@@ -195,103 +180,91 @@ class _AddTripPageState extends State<AddTripPage> {
                   constraints: const BoxConstraints(maxWidth: 600),
                   child: Form(
                     key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _section('Trip details'),
-                        _field(_clientCtrl, 'Client name',       'e.g. Acme Logistics'),
-                        _field(_originCtrl, 'Origin',            'e.g. Johannesburg'),
-                        _field(_destCtrl,   'Destination',       'e.g. Cape Town'),
-                        _field(_cargoCtrl,  'Cargo description', 'What is being transported?'),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      _section('Trip details'),
+                      _field(_clientCtrl, 'Client name',       'e.g. Acme Logistics'),
+                      _field(_originCtrl, 'Origin',            'e.g. Johannesburg'),
+                      _field(_destCtrl,   'Destination',       'e.g. Cape Town'),
+                      _field(_cargoCtrl,  'Cargo description', 'What is being transported?'),
 
-                        // Cargo type dropdown
-                        _dropdownField<String>(
-                          label:   'Cargo type',
-                          value:   _cargoType,
-                          items: const [
-                            DropdownMenuItem(value: 'general',    child: Text('General Freight')),
-                            DropdownMenuItem(value: 'perishable', child: Text('Perishable')),
-                            DropdownMenuItem(value: 'hazardous',  child: Text('Hazardous')),
-                            DropdownMenuItem(value: 'oversized',  child: Text('Oversized')),
-                            DropdownMenuItem(value: 'bulk',       child: Text('Bulk')),
-                            DropdownMenuItem(value: 'other',      child: Text('Other')),
-                          ],
-                          onChanged: (v) => setState(() => _cargoType = v!),
-                          validator: null,
-                        ),
+                      _dropdownField<String>(
+                        label:   'Cargo type',
+                        value:   _cargoType,
+                        items: const [
+                          DropdownMenuItem(value: 'general',    child: Text('General Freight')),
+                          DropdownMenuItem(value: 'perishable', child: Text('Perishable')),
+                          DropdownMenuItem(value: 'hazardous',  child: Text('Hazardous')),
+                          DropdownMenuItem(value: 'oversized',  child: Text('Oversized')),
+                          DropdownMenuItem(value: 'bulk',       child: Text('Bulk')),
+                          DropdownMenuItem(value: 'other',      child: Text('Other')),
+                        ],
+                        onChanged: (v) => setState(() => _cargoType = v!),
+                        validator: null,
+                      ),
 
-                        // Date/time picker
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 16),
-                          child: TextFormField(
-                            controller:  _dateCtrl,
-                            readOnly:    true,
-                            onTap:       _pickDateTime,
-                            decoration: const InputDecoration(
-                              labelText:   'Scheduled departure',
-                              suffixIcon:  Icon(Icons.calendar_today, size: 18),
-                            ),
-                            validator: (v) => v == null || v.isEmpty
-                                ? 'Select a departure date and time' : null,
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: TextFormField(
+                          controller:  _dateCtrl,
+                          readOnly:    true,
+                          onTap:       _pickDateTime,
+                          decoration: const InputDecoration(
+                            labelText:   'Scheduled departure',
+                            suffixIcon:  Icon(Icons.calendar_today, size: 18),
                           ),
+                          validator: (v) => v == null || v.isEmpty
+                              ? 'Select a departure date and time' : null,
                         ),
+                      ),
 
-                        const SizedBox(height: 4),
-                        _section('Assign vehicle & driver'),
+                      const SizedBox(height: 4),
+                      _section('Assign vehicle & driver'),
 
-                        // Horse dropdown
-                        _dropdownField<int>(
-                          label:   'Horse (Truck)',
-                          value:   _selectedHorse,
-                          hint:    _horses.isEmpty ? 'No active horses available' : 'Select a horse',
-                          items:   _horses.map((h) => DropdownMenuItem<int>(
-                            value: h['id'] as int,
-                            child: Text(h['label'] as String,
-                              overflow: TextOverflow.ellipsis),
-                          )).toList(),
-                          onChanged: _horses.isEmpty ? null : (v) => setState(() => _selectedHorse = v),
-                          validator: (_) => _selectedHorse == null ? 'Select a horse' : null,
-                        ),
+                      _dropdownField<String>(
+                        label:   'Horse (Truck)',
+                        value:   _selectedHorse,
+                        hint:    _horses.isEmpty ? 'No active horses available' : 'Select a horse',
+                        items:   _horses.map((h) => DropdownMenuItem<String>(
+                          value: h['id'] as String,
+                          child: Text(h['label'] as String, overflow: TextOverflow.ellipsis),
+                        )).toList(),
+                        onChanged: _horses.isEmpty ? null : (v) => setState(() => _selectedHorse = v),
+                        validator: (_) => _selectedHorse == null ? 'Select a horse' : null,
+                      ),
 
-                        // Trailer dropdown
-                        _dropdownField<int>(
-                          label:   'Trailer',
-                          value:   _selectedTrailer,
-                          hint:    _trailers.isEmpty ? 'No active trailers available' : 'Select a trailer',
-                          items:   _trailers.map((t) => DropdownMenuItem<int>(
-                            value: t['id'] as int,
-                            child: Text(t['label'] as String,
-                              overflow: TextOverflow.ellipsis),
-                          )).toList(),
-                          onChanged: _trailers.isEmpty ? null : (v) => setState(() => _selectedTrailer = v),
-                          validator: (_) => _selectedTrailer == null ? 'Select a trailer' : null,
-                        ),
+                      _dropdownField<String>(
+                        label:   'Trailer',
+                        value:   _selectedTrailer,
+                        hint:    _trailers.isEmpty ? 'No active trailers available' : 'Select a trailer',
+                        items:   _trailers.map((t) => DropdownMenuItem<String>(
+                          value: t['id'] as String,
+                          child: Text(t['label'] as String, overflow: TextOverflow.ellipsis),
+                        )).toList(),
+                        onChanged: _trailers.isEmpty ? null : (v) => setState(() => _selectedTrailer = v),
+                        validator: (_) => _selectedTrailer == null ? 'Select a trailer' : null,
+                      ),
 
-                        // Driver dropdown
-                        _dropdownField<int>(
-                          label:   'Driver',
-                          value:   _selectedDriver,
-                          hint:    _drivers.isEmpty ? 'No drivers available' : 'Select a driver',
-                          items:   _drivers.map((d) => DropdownMenuItem<int>(
-                            value: d['id'] as int,
-                            child: Text(d['label'] as String,
-                              overflow: TextOverflow.ellipsis),
-                          )).toList(),
-                          onChanged: _drivers.isEmpty ? null : (v) => setState(() => _selectedDriver = v),
-                          validator: (_) => _selectedDriver == null ? 'Select a driver' : null,
-                        ),
+                      _dropdownField<String>(
+                        label:   'Driver',
+                        value:   _selectedDriver,
+                        hint:    _drivers.isEmpty ? 'No drivers available' : 'Select a driver',
+                        items:   _drivers.map((d) => DropdownMenuItem<String>(
+                          value: d['id'] as String,
+                          child: Text(d['label'] as String, overflow: TextOverflow.ellipsis),
+                        )).toList(),
+                        onChanged: _drivers.isEmpty ? null : (v) => setState(() => _selectedDriver = v),
+                        validator: (_) => _selectedDriver == null ? 'Select a driver' : null,
+                      ),
 
-                        const SizedBox(height: 8),
-                        ElevatedButton(
-                          onPressed: _loading ? null : _submit,
-                          child: _loading
-                              ? const SizedBox(height: 18, width: 18,
-                                  child: CircularProgressIndicator(
-                                    color: Colors.white, strokeWidth: 2))
-                              : const Text('Create Trip'),
-                        ),
-                      ],
-                    ),
+                      const SizedBox(height: 8),
+                      ElevatedButton(
+                        onPressed: _loading ? null : _submit,
+                        child: _loading
+                            ? const SizedBox(height: 18, width: 18,
+                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                            : const Text('Create Trip'),
+                      ),
+                    ]),
                   ),
                 ),
               ),
@@ -302,8 +275,7 @@ class _AddTripPageState extends State<AddTripPage> {
   Widget _section(String title) => Padding(
     padding: const EdgeInsets.only(bottom: 14, top: 4),
     child: Text(title,
-      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500,
-        color: AppTheme.textMuted)),
+      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppTheme.textMuted)),
   );
 
   Widget _field(TextEditingController ctrl, String label, String hint) {

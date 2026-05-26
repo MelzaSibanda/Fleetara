@@ -1,107 +1,94 @@
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import '../../../../core/network/api_client.dart';
+import '../../../../core/services/firestore_service.dart';
 import '../models/user_model.dart';
 
 class AuthRemoteDataSource {
-  final ApiClient         _client;
+  final FirestoreService  _fs;
   final FirebaseAuth      _firebaseAuth = FirebaseAuth.instance;
 
-  AuthRemoteDataSource(this._client);
+  AuthRemoteDataSource(this._fs);
 
-  Future<Map<String, dynamic>> login(String email, String password) async {
-    // 1. Sign in with Firebase
-    final credential = await _firebaseAuth.signInWithEmailAndPassword(
-      email:    email,
-      password: password,
-    );
-    // 2. Get Firebase ID token
-    final idToken = await credential.user!.getIdToken();
-
-    // 3. Exchange for Django JWT
-    return _exchangeToken(idToken: idToken!);
+  Future<void> login(String email, String password) async {
+    await _firebaseAuth.signInWithEmailAndPassword(
+      email: email, password: password);
   }
 
-  Future<Map<String, dynamic>> register(Map<String, dynamic> userData) async {
-    // 1. Create Firebase user
+  Future<void> register(Map<String, dynamic> userData) async {
     final credential = await _firebaseAuth.createUserWithEmailAndPassword(
       email:    userData['email'],
       password: userData['password'],
     );
-
-    // 2. Update Firebase display name
+    final user     = credential.user!;
     final fullName = '${userData['first_name']} ${userData['last_name']}'.trim();
-    await credential.user!.updateDisplayName(fullName);
+    await user.updateDisplayName(fullName);
 
-    // 3. Get Firebase ID token
-    final idToken = await credential.user!.getIdToken();
-
-    // 4. Exchange for Django JWT (pass extra profile fields)
-    return _exchangeToken(
-      idToken:    idToken!,
-      firstName:  userData['first_name'],
-      lastName:   userData['last_name'],
-      role:       userData['role'],
-      phone:      userData['phone'] ?? '',
-    );
-  }
-
-  Future<Map<String, dynamic>> _exchangeToken({
-    required String idToken,
-    String? firstName,
-    String? lastName,
-    String? role,
-    String? phone,
-  }) async {
-    final body = <String, dynamic>{'id_token': idToken};
-    if (firstName != null) body['first_name'] = firstName;
-    if (lastName  != null) body['last_name']  = lastName;
-    if (role      != null) body['role']        = role;
-    if (phone     != null) body['phone']       = phone;
-
-    final response = await _client.dio.post('/auth/firebase/', data: body);
-    final data     = response.data;
-    final prefs    = await SharedPreferences.getInstance();
-    await prefs.setString('access_token',  data['access']);
-    await prefs.setString('refresh_token', data['refresh']);
-    _client.setTokens(data['access'], data['refresh']);
-    return data;
+    // Write user profile to Firestore
+    await _fs.db.collection('users').doc(user.uid).set({
+      'id':            user.uid,
+      'email':         userData['email'],
+      'first_name':    userData['first_name'] ?? '',
+      'last_name':     userData['last_name']  ?? '',
+      'full_name':     fullName,
+      'phone':         userData['phone'] ?? '',
+      'role':          userData['role']  ?? 'driver',
+      'is_active':     true,
+      'created_at':    DateTime.now().toIso8601String(),
+    });
   }
 
   Future<UserModel> getMe() async {
-    final response = await _client.dio.get('/auth/me/');
-    return UserModel.fromJson(response.data);
+    final fbUser = _firebaseAuth.currentUser;
+    if (fbUser == null) throw Exception('Not authenticated');
+    final uid = fbUser.uid;
+
+    try {
+      final doc = await _fs.db.collection('users').doc(uid).get();
+      if (doc.exists) {
+        return UserModel.fromJson(_fs.docToMap(doc));
+      }
+      // No Firestore doc yet — build profile from Firebase Auth and persist it
+      final nameParts = (fbUser.displayName ?? '').split(' ');
+      final firstName = nameParts.isNotEmpty ? nameParts.first : '';
+      final lastName  = nameParts.length > 1  ? nameParts.sublist(1).join(' ') : '';
+      final profile = {
+        'id':         uid,
+        'email':      fbUser.email ?? '',
+        'first_name': firstName,
+        'last_name':  lastName,
+        'full_name':  fbUser.displayName ?? '',
+        'phone':      '',
+        'role':       'driver',
+        'is_active':  true,
+        'created_at': DateTime.now().toIso8601String(),
+      };
+      // Best-effort write — if it fails (e.g. rules), still return the user
+      try {
+        await _fs.db.collection('users').doc(uid).set(profile);
+      } catch (_) {}
+      return UserModel.fromJson(profile);
+    } catch (e) {
+      // Firestore unreachable — return minimal user from Firebase Auth so login still works
+      final nameParts = (fbUser.displayName ?? '').split(' ');
+      final first = nameParts.isNotEmpty ? nameParts.first : '';
+      final last  = nameParts.length > 1  ? nameParts.sublist(1).join(' ') : '';
+      return UserModel(
+        id:        uid,
+        email:     fbUser.email ?? '',
+        firstName: first,
+        lastName:  last,
+        fullName:  fbUser.displayName ?? '$first $last'.trim(),
+        phone:     '',
+        role:      'driver',
+        isActive:  true,
+      );
+    }
   }
 
   Future<void> logout() async {
-    try {
-      final prefs        = await SharedPreferences.getInstance();
-      final refreshToken = prefs.getString('refresh_token');
-      if (refreshToken != null) {
-        await _client.dio.post('/auth/logout/', data: {'refresh': refreshToken});
-      }
-    } catch (_) {
-      // Proceed with local logout even if server call fails
-    } finally {
-      // Clear in-memory tokens immediately
-      _client.clearTokens();
-      // Sign out of Firebase
-      await _firebaseAuth.signOut();
-      // Clear persisted tokens
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('access_token');
-      await prefs.remove('refresh_token');
-    }
+    await _firebaseAuth.signOut();
   }
 
   Future<bool> isLoggedIn() async {
-    final prefs        = await SharedPreferences.getInstance();
-    final accessToken  = prefs.getString('access_token');
-    final refreshToken = prefs.getString('refresh_token');
-    if (accessToken != null) {
-      _client.setTokens(accessToken, refreshToken ?? '');
-      return true;
-    }
-    return false;
+    return _firebaseAuth.currentUser != null;
   }
 }

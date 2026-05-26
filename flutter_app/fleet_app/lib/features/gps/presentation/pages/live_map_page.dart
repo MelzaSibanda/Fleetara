@@ -3,7 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/service_locator.dart';
-import '../../../../core/network/api_client.dart';
+import '../../../../core/services/firestore_service.dart';
 import '../../../dashboard/presentation/widgets/app_shell.dart';
 
 class LiveMapPage extends StatefulWidget {
@@ -12,10 +12,11 @@ class LiveMapPage extends StatefulWidget {
 }
 
 class _LiveMapPageState extends State<LiveMapPage> {
-  List   _liveData    = [];
-  bool   _loading     = true;
-  bool   _refreshing  = false;
+  List   _liveData   = [];
+  bool   _loading    = true;
+  bool   _refreshing = false;
   Timer? _timer;
+  final _fs = sl<FirestoreService>();
 
   @override
   void initState() {
@@ -31,8 +32,20 @@ class _LiveMapPageState extends State<LiveMapPage> {
     if (!silent) setState(() => _loading = true);
     setState(() => _refreshing = true);
     try {
-      final res = await sl<ApiClient>().dio.get('/gps/live/');
-      setState(() { _liveData = res.data is List ? res.data : []; _loading = false; _refreshing = false; });
+      final snap = await _fs.db.collection('trips')
+          .where('status', isEqualTo: 'in_progress').get();
+      final trips = _fs.docsToList(snap);
+      final liveData = trips.map((t) => {
+        'driver':      t['driver_name']   ?? '',
+        'horse':       t['horse_reg']     ?? '',
+        'origin':      t['origin']        ?? '',
+        'destination': t['destination']   ?? '',
+        'latitude':    t['latitude'],
+        'longitude':   t['longitude'],
+        'speed_kmh':   t['speed_kmh'],
+        'timestamp':   t['location_updated_at'] ?? t['actual_start'] ?? '',
+      }).toList();
+      setState(() { _liveData = liveData; _loading = false; _refreshing = false; });
     } catch (_) {
       setState(() { _loading = false; _refreshing = false; });
     }

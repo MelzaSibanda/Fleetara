@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/service_locator.dart';
-import '../../../../core/network/api_client.dart';
+import '../../../../core/services/firestore_service.dart';
 import '../../../../core/utils/responsive.dart';
 
 class AddVehiclePage extends StatefulWidget {
@@ -11,34 +11,41 @@ class AddVehiclePage extends StatefulWidget {
 }
 
 class _AddVehiclePageState extends State<AddVehiclePage> {
-  final _formKey          = GlobalKey<FormState>();
-  String _type            = 'horse';
-  bool   _loading         = false;
+  final _formKey       = GlobalKey<FormState>();
+  String _type         = 'horse';
+  bool   _loading      = false;
+  final _fs            = sl<FirestoreService>();
 
-  final _regCtrl          = TextEditingController();
-  final _makeCtrl         = TextEditingController();
-  final _modelCtrl        = TextEditingController();
-  final _yearCtrl         = TextEditingController();
-  final _odomCtrl         = TextEditingController();
-  final _licenseCtrl      = TextEditingController();
-  final _insuranceCtrl    = TextEditingController();
-  final _serviceKmCtrl    = TextEditingController();
+  final _regCtrl       = TextEditingController();
+  final _makeCtrl      = TextEditingController();
+  final _modelCtrl     = TextEditingController();
+  final _yearCtrl      = TextEditingController();
+  final _odomCtrl      = TextEditingController();
+  final _licenseCtrl   = TextEditingController();
+  final _insuranceCtrl = TextEditingController();
+  final _serviceKmCtrl = TextEditingController();
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _loading = true);
     try {
-      final endpoint = _type == 'horse' ? '/vehicles/horses/' : '/vehicles/trailers/';
-      await sl<ApiClient>().dio.post(endpoint, data: {
-        'registration_number': _regCtrl.text.trim(),
-        'make':                _makeCtrl.text.trim(),
-        'model':               _modelCtrl.text.trim(),
-        'year':                int.parse(_yearCtrl.text),
-        'odometer':            int.parse(_odomCtrl.text),
-        'license_expiry':      _licenseCtrl.text,
-        'insurance_expiry':    _insuranceCtrl.text,
-        'service_interval_km': int.parse(_serviceKmCtrl.text),
-        'next_service_km':     int.parse(_serviceKmCtrl.text),
+      final odometer    = int.parse(_odomCtrl.text);
+      final serviceKm   = int.parse(_serviceKmCtrl.text);
+      final nextService = odometer + serviceKm;
+
+      await _fs.db.collection('vehicles').add({
+        'type':                 _type,
+        'registration_number':  _regCtrl.text.trim(),
+        'make':                 _makeCtrl.text.trim(),
+        'model':                _modelCtrl.text.trim(),
+        'year':                 int.parse(_yearCtrl.text),
+        'odometer':             odometer,
+        'license_expiry':       _licenseCtrl.text.trim(),
+        'insurance_expiry':     _insuranceCtrl.text.trim(),
+        'service_interval_km':  serviceKm,
+        'next_service_km':      nextService,
+        'status':               'active',
+        'created_at':           DateTime.now().toIso8601String(),
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(

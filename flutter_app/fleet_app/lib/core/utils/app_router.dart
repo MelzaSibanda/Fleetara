@@ -73,7 +73,7 @@ GoRouter buildRouter(AuthBloc authBloc, ChangeNotifier refreshListenable) {
       GoRoute(
         path: '/trips/:id',
         builder: (_, state) => TripDetailPage(
-          tripId: int.parse(state.pathParameters['id']!)),
+          tripId: state.pathParameters['id']!),
       ),
       GoRoute(
         path: '/trips/:id/edit',

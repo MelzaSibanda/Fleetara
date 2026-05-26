@@ -1,5 +1,5 @@
 class VehicleModel {
-  final int     id;
+  final String  id;
   final String  type; // 'horse' or 'trailer'
   final String  registrationNumber;
   final String  make;
@@ -35,22 +35,32 @@ class VehicleModel {
     this.photo,
   });
 
-  factory VehicleModel.fromJson(Map<String, dynamic> json, {String type = 'horse'}) => VehicleModel(
-    id:                 json['id'],
-    type:               type,
-    registrationNumber: json['registration_number'] ?? '',
-    make:               json['make']                ?? '',
-    model:              json['model']               ?? '',
-    year:               json['year']                ?? 0,
-    status:             json['status']              ?? 'active',
-    odometer:           json['odometer']            ?? 0,
-    nextServiceKm:      json['next_service_km']     ?? 0,
-    serviceIntervalKm:  json['service_interval_km'] ?? 20000,
-    licenseExpiry:      json['license_expiry']      ?? '',
-    insuranceExpiry:    json['insurance_expiry']    ?? '',
-    serviceDue:         json['service_due']         ?? false,
-    kmUntilService:     json['km_until_service']    ?? 0,
-    notes:              json['notes'],
-    photo:              json['photo'],
-  );
+  factory VehicleModel.fromJson(Map<String, dynamic> json, {String type = 'horse'}) {
+    final odometer          = (json['odometer']             ?? 0) as int;
+    final nextServiceKm     = (json['next_service_km']      ?? 0) as int;
+    final serviceIntervalKm = (json['service_interval_km']  ?? 20000) as int;
+    final kmUntilService    = nextServiceKm > odometer
+        ? nextServiceKm - odometer
+        : (json['km_until_service'] ?? 0) as int;
+    final serviceDue        = kmUntilService <= 0;
+
+    return VehicleModel(
+      id:                 json['id']?.toString()             ?? '',
+      type:               json['type']                       ?? type,
+      registrationNumber: json['registration_number']        ?? '',
+      make:               json['make']                       ?? '',
+      model:              json['model']                      ?? '',
+      year:               (json['year']                      ?? 0) as int,
+      status:             json['status']                     ?? 'active',
+      odometer:           odometer,
+      nextServiceKm:      nextServiceKm,
+      serviceIntervalKm:  serviceIntervalKm,
+      licenseExpiry:      json['license_expiry']             ?? '',
+      insuranceExpiry:    json['insurance_expiry']           ?? '',
+      serviceDue:         json['service_due']                ?? serviceDue,
+      kmUntilService:     kmUntilService,
+      notes:              json['notes'],
+      photo:              json['photo'],
+    );
+  }
 }

@@ -165,7 +165,7 @@ class _VehicleCard extends StatelessWidget {
             onPressed: () {
               Navigator.pop(dialogCtx);
               context.read<VehicleBloc>()
-                .add(DeleteVehicle(vehicle.id, vehicle.type));
+                .add(DeleteVehicle(vehicle.id));
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppTheme.rose,

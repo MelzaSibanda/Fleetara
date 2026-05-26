@@ -3,7 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/service_locator.dart';
-import '../../../../core/network/api_client.dart';
+import '../../../../core/services/firestore_service.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../auth/presentation/bloc/auth_state.dart';
 import '../widgets/app_shell.dart';
@@ -19,6 +19,7 @@ class _ManagerDashboardPageState extends State<ManagerDashboardPage> {
   Map  _stats   = {};
   List _alerts  = [];
   bool _loading = true;
+  final _fs = sl<FirestoreService>();
 
   @override
   void initState() { super.initState(); _load(); }
@@ -26,28 +27,21 @@ class _ManagerDashboardPageState extends State<ManagerDashboardPage> {
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
-      final client = sl<ApiClient>();
-
-      dynamic horses, trailers, trips, dailyChecks, repairs;
-      await Future.wait([
-        client.dio.get('/vehicles/horses/').then((r)    => horses      = r.data).catchError((_) {}),
-        client.dio.get('/vehicles/trailers/').then((r)  => trailers    = r.data).catchError((_) {}),
-        client.dio.get('/trips/').then((r)              => trips       = r.data).catchError((_) {}),
-        client.dio.get('/daily-checks/').then((r)       => dailyChecks = r.data).catchError((_) {}),
-        client.dio.get('/repairs/').then((r)            => repairs     = r.data).catchError((_) {}),
+      final results = await Future.wait([
+        _fs.db.collection('vehicles').get(),
+        _fs.db.collection('trips').where('status', isEqualTo: 'in_progress').get(),
+        _fs.db.collection('daily_checks').orderBy('check_date', descending: true).limit(50).get(),
+        _fs.db.collection('repairs').where('status', isNotEqualTo: 'resolved').get(),
       ]);
 
-      final checkList  = (dailyChecks is Map ? (dailyChecks['results'] ?? []) : []) as List;
-      final repairList = (repairs     is Map ? (repairs['results']     ?? []) : []) as List;
+      final vehicles    = _fs.docsToList(results[0]);
+      final activeTrips = _fs.docsToList(results[1]);
+      final checkList   = _fs.docsToList(results[2]);
+      final repairList  = _fs.docsToList(results[3]);
 
-      final horseCount   = horses   is Map ? (horses['count']   ?? 0) as int : 0;
-      final trailerCount = trailers is Map ? (trailers['count'] ?? 0) as int : 0;
-      final vehicleCount = horseCount + trailerCount;
-      final activeTrips  = trips    is Map ? (trips['count']    ?? 0) as int : 0;
       final failedChecks = checkList.where((c) => c['overall_status'] == 'fail').length;
-      final openRepairs  = repairList.where((r) => r['status'] != 'resolved').length;
+      final openRepairs  = repairList.length;
 
-      // Build alerts from failed checks and open repairs
       final alerts = <Map<String, dynamic>>[];
       if (failedChecks > 0) {
         alerts.add({
@@ -66,10 +60,10 @@ class _ManagerDashboardPageState extends State<ManagerDashboardPage> {
 
       setState(() {
         _stats = {
-          'vehicles':  vehicleCount,
-          'trips':     activeTrips,
-          'checks':    checkList.length,
-          'repairs':   openRepairs,
+          'vehicles': vehicles.length,
+          'trips':    activeTrips.length,
+          'checks':   checkList.length,
+          'repairs':  openRepairs,
         };
         _alerts  = alerts;
         _loading = false;
@@ -90,6 +84,7 @@ class _ManagerDashboardPageState extends State<ManagerDashboardPage> {
     return AppShell(
       title: 'Fleetara',
       child: RefreshIndicator(
+        color: AppTheme.primary,
         onRefresh: _load,
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -97,7 +92,6 @@ class _ManagerDashboardPageState extends State<ManagerDashboardPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Greeting
               Row(children: [
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text('$greeting, ${user.firstName}',
@@ -119,7 +113,6 @@ class _ManagerDashboardPageState extends State<ManagerDashboardPage> {
               ]),
               const SizedBox(height: 24),
 
-              // KPI grid
               if (_loading)
                 const Center(child: Padding(
                   padding: EdgeInsets.all(40),
@@ -166,7 +159,6 @@ class _ManagerDashboardPageState extends State<ManagerDashboardPage> {
                 ),
                 const SizedBox(height: 24),
 
-                // Quick nav tiles
                 const SectionHeader('Quick access'),
                 GridView.count(
                   crossAxisCount: 4,
@@ -176,19 +168,18 @@ class _ManagerDashboardPageState extends State<ManagerDashboardPage> {
                   mainAxisSpacing: 10,
                   childAspectRatio: 1.1,
                   children: [
-                    _QuickTile(icon: Icons.local_shipping_outlined, label: 'Vehicles',     color: AppTheme.primary,  route: '/vehicles',     context: context),
-                    _QuickTile(icon: Icons.route_outlined,           label: 'Trips',        color: AppTheme.emerald,  route: '/trips',        context: context),
-                    _QuickTile(icon: Icons.assignment_turned_in_outlined, label: 'Checks', color: AppTheme.amber,    route: '/daily-checks', context: context),
-                    _QuickTile(icon: Icons.local_gas_station,        label: 'Fuel',         color: AppTheme.primary,  route: '/fuel',         context: context),
-                    _QuickTile(icon: Icons.tire_repair,              label: 'Tyres',        color: AppTheme.darkNavy, route: '/tyres',        context: context),
-                    _QuickTile(icon: Icons.build_circle_outlined,    label: 'Services',     color: AppTheme.amber,    route: '/services',     context: context),
-                    _QuickTile(icon: Icons.handyman_outlined,        label: 'Repairs',      color: AppTheme.rose,     route: '/repairs',      context: context),
-                    _QuickTile(icon: Icons.location_on_outlined,     label: 'Location',     color: AppTheme.emerald,  route: '/gps/live',     context: context),
+                    _QuickTile(icon: Icons.local_shipping_outlined,       label: 'Vehicles', color: AppTheme.primary,  route: '/vehicles',     context: context),
+                    _QuickTile(icon: Icons.route_outlined,                label: 'Trips',    color: AppTheme.emerald,  route: '/trips',        context: context),
+                    _QuickTile(icon: Icons.assignment_turned_in_outlined, label: 'Checks',   color: AppTheme.amber,    route: '/daily-checks', context: context),
+                    _QuickTile(icon: Icons.local_gas_station,             label: 'Fuel',     color: AppTheme.primary,  route: '/fuel',         context: context),
+                    _QuickTile(icon: Icons.tire_repair,                   label: 'Tyres',    color: AppTheme.darkNavy, route: '/tyres',        context: context),
+                    _QuickTile(icon: Icons.build_circle_outlined,         label: 'Services', color: AppTheme.amber,    route: '/services',     context: context),
+                    _QuickTile(icon: Icons.handyman_outlined,             label: 'Repairs',  color: AppTheme.rose,     route: '/repairs',      context: context),
+                    _QuickTile(icon: Icons.location_on_outlined,          label: 'Location', color: AppTheme.emerald,  route: '/gps/live',     context: context),
                   ],
                 ),
                 const SizedBox(height: 24),
 
-                // Alerts
                 const SectionHeader('Alerts'),
                 if (_alerts.isEmpty)
                   const AlertCard(

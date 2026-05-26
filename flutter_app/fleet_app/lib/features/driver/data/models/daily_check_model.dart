@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
 class DailyCheckModel {
-  final int     id;
-  final int     horseId;
-  final int?    trailerId;
-  final int?    tripId;
+  final String  id;
+  final String  horseId;
+  final String? trailerId;
+  final String? tripId;
   final String  overallStatus;
   final String  checkDate;
   final String? notes;
@@ -67,14 +67,14 @@ class DailyCheckModel {
   });
 
   factory DailyCheckModel.fromJson(Map<String, dynamic> j) => DailyCheckModel(
-    id:                  j['id'],
-    horseId:             j['horse'],
-    trailerId:           j['trailer'],
-    tripId:              j['trip'],
-    overallStatus:       j['overall_status'] ?? 'pass',
-    checkDate:           j['check_date'] ?? '',
+    id:                  j['id']?.toString()       ?? '',
+    horseId:             j['horse_id']?.toString() ?? j['horse']?.toString() ?? '',
+    trailerId:           j['trailer_id']?.toString() ?? j['trailer']?.toString(),
+    tripId:              j['trip_id']?.toString()   ?? j['trip']?.toString(),
+    overallStatus:       j['overall_status']        ?? 'pass',
+    checkDate:           j['check_date']            ?? '',
     notes:               j['notes'],
-    odometer:            j['odometer'],
+    odometer:            j['odometer'] is int ? j['odometer'] : null,
     oilLevel:            j['oil_level']            ?? false,
     coolantLevel:        j['coolant_level']         ?? false,
     noEngineLeaks:       j['no_engine_leaks']       ?? false,

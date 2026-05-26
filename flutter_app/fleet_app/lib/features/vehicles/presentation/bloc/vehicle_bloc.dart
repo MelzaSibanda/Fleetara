@@ -1,7 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
 import '../../../../core/utils/service_locator.dart';
-import '../../../../core/network/api_client.dart';
+import '../../../../core/services/firestore_service.dart';
 import '../../data/vehicle_model.dart';
 
 // Events
@@ -10,9 +10,9 @@ abstract class VehicleEvent extends Equatable {
 }
 class LoadVehicles  extends VehicleEvent {}
 class DeleteVehicle extends VehicleEvent {
-  final int id; final String type;
-  DeleteVehicle(this.id, this.type);
-  @override List<Object?> get props => [id, type];
+  final String id;
+  DeleteVehicle(this.id);
+  @override List<Object?> get props => [id];
 }
 
 // States
@@ -37,19 +37,19 @@ class VehiclesLoaded extends VehicleState {
 
 // Bloc
 class VehicleBloc extends Bloc<VehicleEvent, VehicleState> {
-  final ApiClient _client;
+  final FirestoreService _fs;
 
-  VehicleBloc() : _client = sl<ApiClient>(), super(VehicleInitial()) {
+  VehicleBloc() : _fs = sl<FirestoreService>(), super(VehicleInitial()) {
 
     on<LoadVehicles>((event, emit) async {
       emit(VehicleLoading());
       try {
-        final hRes = await _client.dio.get('/vehicles/horses/');
-        final tRes = await _client.dio.get('/vehicles/trailers/');
-        final horses = ((hRes.data['results'] ?? hRes.data) as List)
-            .map<VehicleModel>((j) => VehicleModel.fromJson(j, type: 'horse')).toList();
-        final trailers = ((tRes.data['results'] ?? tRes.data) as List)
-            .map<VehicleModel>((j) => VehicleModel.fromJson(j, type: 'trailer')).toList();
+        final snap = await _fs.db.collection('vehicles').get();
+        final all = _fs.docsToList(snap);
+        final horses   = all.where((v) => v['type'] == 'horse')
+            .map((j) => VehicleModel.fromJson(j, type: 'horse')).toList();
+        final trailers = all.where((v) => v['type'] == 'trailer')
+            .map((j) => VehicleModel.fromJson(j, type: 'trailer')).toList();
         emit(VehiclesLoaded(horses: horses, trailers: trailers));
       } catch (_) {
         emit(VehicleError('Failed to load vehicles.'));
@@ -59,10 +59,7 @@ class VehicleBloc extends Bloc<VehicleEvent, VehicleState> {
     on<DeleteVehicle>((event, emit) async {
       emit(VehicleDeleting());
       try {
-        final endpoint = event.type == 'horse'
-            ? '/vehicles/horses/${event.id}/'
-            : '/vehicles/trailers/${event.id}/';
-        await _client.dio.delete(endpoint);
+        await _fs.db.collection('vehicles').doc(event.id).delete();
         emit(VehicleDeleted());
       } catch (_) {
         emit(VehicleError('Failed to delete vehicle.'));
