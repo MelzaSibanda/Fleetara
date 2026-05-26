@@ -19,7 +19,7 @@ class AuthRemoteDataSource {
     final fbUser = _firebaseAuth.currentUser;
     if (fbUser == null) return;
     final idToken = await fbUser.getIdToken();
-    final resp = await _api.dio.post('/users/firebase/', data: {
+    final resp = await _api.dio.post('/auth/firebase/', data: {
       'id_token':   idToken,
       'role':       role,
       'first_name': firstName,
