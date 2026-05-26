@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/service_locator.dart';
-import '../../../../core/services/firestore_service.dart';
-import '../../../../core/utils/responsive.dart';
+import '../../../../core/network/api_client.dart';
 
 class AddInvoicePage extends StatefulWidget {
   const AddInvoicePage({super.key});
@@ -11,52 +10,85 @@ class AddInvoicePage extends StatefulWidget {
 }
 
 class _AddInvoicePageState extends State<AddInvoicePage> {
-  final _formKey    = GlobalKey<FormState>();
-  bool  _loading    = false;
-  String _type      = 'receivable';
-  String _category  = 'trip';
-  final _fs = sl<FirestoreService>();
+  final _formKey   = GlobalKey<FormState>();
+  bool  _loading   = false;
+  String _type     = 'receivable';
+  String _category = 'trip';
 
   final _partyCtrl     = TextEditingController();
+  final _partyAddrCtrl = TextEditingController();
+  final _partyVatCtrl  = TextEditingController();
   final _emailCtrl     = TextEditingController();
   final _phoneCtrl     = TextEditingController();
+  final _truckRegCtrl  = TextEditingController();
+  final _descCtrl      = TextEditingController();
+  final _qtyCtrl       = TextEditingController();
+  final _rateCtrl      = TextEditingController();
   final _subtotalCtrl  = TextEditingController();
+  final _taxPctCtrl    = TextEditingController(text: '0');
   final _issueDateCtrl = TextEditingController();
   final _dueDateCtrl   = TextEditingController();
   final _notesCtrl     = TextEditingController();
 
   @override
   void dispose() {
-    _partyCtrl.dispose();    _emailCtrl.dispose();  _phoneCtrl.dispose();
-    _subtotalCtrl.dispose(); _issueDateCtrl.dispose(); _dueDateCtrl.dispose();
-    _notesCtrl.dispose();
+    for (final c in [_partyCtrl, _partyAddrCtrl, _partyVatCtrl, _emailCtrl,
+        _phoneCtrl, _truckRegCtrl, _descCtrl, _qtyCtrl, _rateCtrl,
+        _subtotalCtrl, _taxPctCtrl, _issueDateCtrl, _dueDateCtrl, _notesCtrl]) {
+      c.dispose();
+    }
     super.dispose();
   }
 
-  String _generateInvoiceNumber() {
-    final now = DateTime.now();
-    return 'INV-${now.year}${now.month.toString().padLeft(2,'0')}${now.millisecond}';
+  void _recalcSubtotal() {
+    final qty  = double.tryParse(_qtyCtrl.text)  ?? 0;
+    final rate = double.tryParse(_rateCtrl.text) ?? 0;
+    if (qty > 0 && rate > 0) {
+      _subtotalCtrl.text = (qty * rate).toStringAsFixed(2);
+    }
+  }
+
+  Future<void> _pickDate(TextEditingController ctrl) async {
+    final d = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2030),
+      builder: (ctx, child) => Theme(
+        data: Theme.of(ctx).copyWith(
+          colorScheme: const ColorScheme.light(primary: AppTheme.primary)),
+        child: child!,
+      ),
+    );
+    if (d != null) {
+      ctrl.text = '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+    }
   }
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _loading = true);
     try {
-      final subtotal = double.parse(_subtotalCtrl.text);
-      await _fs.db.collection('invoices').add({
-        'invoice_number': _generateInvoiceNumber(),
-        'invoice_type':   _type,
-        'category':       _category,
-        'party_name':     _partyCtrl.text.trim(),
-        'party_email':    _emailCtrl.text.trim(),
-        'party_phone':    _phoneCtrl.text.trim(),
-        'subtotal':       subtotal,
-        'total':          subtotal,
-        'issue_date':     _issueDateCtrl.text.trim(),
-        'due_date':       _dueDateCtrl.text.trim(),
-        'notes':          _notesCtrl.text.trim(),
-        'status':         'draft',
-        'created_at':     DateTime.now().toIso8601String(),
+      final qty  = double.tryParse(_qtyCtrl.text);
+      final rate = double.tryParse(_rateCtrl.text);
+      await sl<ApiClient>().dio.post('/invoices/', data: {
+        'invoice_type':  _type,
+        'category':      _category,
+        'party_name':    _partyCtrl.text.trim(),
+        'party_address': _partyAddrCtrl.text.trim(),
+        'party_vat':     _partyVatCtrl.text.trim(),
+        'party_email':   _emailCtrl.text.trim(),
+        'party_phone':   _phoneCtrl.text.trim(),
+        'truck_reg':     _truckRegCtrl.text.trim(),
+        'description':   _descCtrl.text.trim(),
+        if (qty != null)  'quantity': qty,
+        if (rate != null) 'rate': rate,
+        'subtotal':      double.tryParse(_subtotalCtrl.text) ?? 0,
+        'tax_percent':   double.tryParse(_taxPctCtrl.text) ?? 0,
+        'issue_date':    _issueDateCtrl.text.trim(),
+        'due_date':      _dueDateCtrl.text.trim(),
+        'notes':         _notesCtrl.text.trim(),
+        'status':        'draft',
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -87,56 +119,73 @@ class _AddInvoicePageState extends State<AddInvoicePage> {
         ),
       ),
       body: SingleChildScrollView(
-        padding: Responsive.pagePadding(context),
+        padding: const EdgeInsets.all(20),
         child: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 600),
+            constraints: const BoxConstraints(maxWidth: 640),
             child: Form(
               key: _formKey,
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: DropdownButtonFormField<String>(
-                    initialValue: _type,
-                    decoration: const InputDecoration(labelText: 'Invoice type'),
-                    items: const [
-                      DropdownMenuItem(value: 'receivable', child: Text('Receivable (Client owes us)')),
-                      DropdownMenuItem(value: 'payable',    child: Text('Payable (We owe supplier)')),
-                    ],
-                    onChanged: (v) => setState(() => _type = v!),
-                  ),
+                _section('Invoice type'),
+                DropdownButtonFormField<String>(
+                  initialValue: _type,
+                  decoration: const InputDecoration(labelText: 'Invoice type'),
+                  items: const [
+                    DropdownMenuItem(value: 'receivable', child: Text('Receivable (Client owes us)')),
+                    DropdownMenuItem(value: 'payable',    child: Text('Payable (We owe supplier)')),
+                  ],
+                  onChanged: (v) => setState(() => _type = v!),
                 ),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: DropdownButtonFormField<String>(
-                    initialValue: _category,
-                    decoration: const InputDecoration(labelText: 'Category'),
-                    items: const [
-                      DropdownMenuItem(value: 'trip',    child: Text('Trip / Freight')),
-                      DropdownMenuItem(value: 'fuel',    child: Text('Fuel')),
-                      DropdownMenuItem(value: 'service', child: Text('Vehicle Service')),
-                      DropdownMenuItem(value: 'repair',  child: Text('Repair')),
-                      DropdownMenuItem(value: 'tyre',    child: Text('Tyres')),
-                      DropdownMenuItem(value: 'other',   child: Text('Other')),
-                    ],
-                    onChanged: (v) => setState(() => _category = v!),
-                  ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  initialValue: _category,
+                  decoration: const InputDecoration(labelText: 'Category'),
+                  items: const [
+                    DropdownMenuItem(value: 'trip',    child: Text('Trip / Freight')),
+                    DropdownMenuItem(value: 'fuel',    child: Text('Fuel')),
+                    DropdownMenuItem(value: 'service', child: Text('Vehicle Service')),
+                    DropdownMenuItem(value: 'repair',  child: Text('Repair')),
+                    DropdownMenuItem(value: 'tyre',    child: Text('Tyres')),
+                    DropdownMenuItem(value: 'other',   child: Text('Other')),
+                  ],
+                  onChanged: (v) => setState(() => _category = v!),
                 ),
-                _field(_partyCtrl,     'Client / Supplier name'),
-                _field(_emailCtrl,     'Email',                  required: false),
-                _field(_phoneCtrl,     'Phone',                  required: false),
-                _field(_subtotalCtrl,  'Subtotal (R)',           isNum: true),
-                _field(_issueDateCtrl, 'Issue date (YYYY-MM-DD)'),
-                _field(_dueDateCtrl,   'Due date (YYYY-MM-DD)'),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: TextFormField(
-                    controller: _notesCtrl,
-                    maxLines: 3,
-                    decoration: const InputDecoration(labelText: 'Notes'),
-                  ),
-                ),
+                const SizedBox(height: 24),
+
+                _section('Bill To (Client)'),
+                _field(_partyCtrl,    'Client / Company name'),
+                _field(_partyAddrCtrl,'Client address',       required: false, lines: 2),
+                _field(_partyVatCtrl, 'Client VAT number',    required: false),
+                _field(_emailCtrl,    'Email',                required: false),
+                _field(_phoneCtrl,    'Phone',                required: false),
                 const SizedBox(height: 8),
+
+                _section('Trip details'),
+                _field(_truckRegCtrl, 'Truck reg no.', required: false),
+                _field(_descCtrl,     'Line item description', required: false, lines: 2),
+                const SizedBox(height: 8),
+
+                _section('Amounts'),
+                Row(children: [
+                  Expanded(child: _field(_qtyCtrl,  'Qty (loads)',  isNum: true, required: false,
+                    onChanged: (_) => setState(_recalcSubtotal))),
+                  const SizedBox(width: 12),
+                  Expanded(child: _field(_rateCtrl, 'Rate (R)',     isNum: true, required: false,
+                    onChanged: (_) => setState(_recalcSubtotal))),
+                ]),
+                _field(_subtotalCtrl, 'Subtotal (R)', isNum: true),
+                _field(_taxPctCtrl,   'VAT % (0 if zero-rated)', isNum: true),
+                const SizedBox(height: 8),
+
+                _section('Dates'),
+                _datePicker(_issueDateCtrl, 'Issue date'),
+                _datePicker(_dueDateCtrl,   'Due date'),
+                const SizedBox(height: 8),
+
+                _section('Notes'),
+                _field(_notesCtrl, 'Special notes / instructions', required: false, lines: 3),
+                const SizedBox(height: 16),
+
                 ElevatedButton(
                   onPressed: _loading ? null : _submit,
                   child: _loading
@@ -144,6 +193,7 @@ class _AddInvoicePageState extends State<AddInvoicePage> {
                         child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                     : const Text('Create Invoice'),
                 ),
+                const SizedBox(height: 32),
               ]),
             ),
           ),
@@ -152,16 +202,41 @@ class _AddInvoicePageState extends State<AddInvoicePage> {
     );
   }
 
-  Widget _field(TextEditingController ctrl, String label,
-      {bool isNum = false, bool required = true}) {
+  Widget _section(String title) => Padding(
+    padding: const EdgeInsets.only(bottom: 12, top: 4),
+    child: Text(title, style: const TextStyle(
+      fontSize: 11, fontWeight: FontWeight.w600,
+      color: AppTheme.textMuted, letterSpacing: 0.5)),
+  );
+
+  Widget _field(TextEditingController ctrl, String label, {
+    bool isNum = false, bool required = true, int lines = 1,
+    void Function(String)? onChanged,
+  }) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.only(bottom: 14),
       child: TextFormField(
         controller: ctrl,
         keyboardType: isNum ? TextInputType.number : TextInputType.text,
+        maxLines: lines,
         decoration: InputDecoration(labelText: label),
+        onChanged: onChanged,
         validator: required ? (v) => v == null || v.isEmpty ? 'Required' : null : null,
       ),
     );
   }
+
+  Widget _datePicker(TextEditingController ctrl, String label) => Padding(
+    padding: const EdgeInsets.only(bottom: 14),
+    child: TextFormField(
+      controller: ctrl,
+      readOnly: true,
+      onTap: () => _pickDate(ctrl),
+      decoration: InputDecoration(
+        labelText: label,
+        suffixIcon: const Icon(Icons.calendar_today, size: 16),
+      ),
+      validator: (v) => v == null || v.isEmpty ? 'Required' : null,
+    ),
+  );
 }

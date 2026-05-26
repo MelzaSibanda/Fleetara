@@ -3,8 +3,8 @@ from rest_framework.views    import APIView
 from rest_framework.response import Response
 from django.db.models        import Sum
 
-from .models      import Invoice
-from .serializers import InvoiceSerializer
+from .models      import Invoice, CompanyProfile
+from .serializers import InvoiceSerializer, CompanyProfileSerializer
 from utils.permissions import IsOwnerOrAdmin, IsFleetManager
 
 
@@ -39,6 +39,22 @@ class InvoiceDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class   = InvoiceSerializer
     permission_classes = [IsFleetManager]
     queryset           = Invoice.objects.all()
+
+
+class CompanyProfileView(APIView):
+    permission_classes = [IsFleetManager]
+
+    def get(self, request):
+        profile, _ = CompanyProfile.objects.get_or_create(pk=1)
+        return Response(CompanyProfileSerializer(profile).data)
+
+    def put(self, request):
+        profile, _ = CompanyProfile.objects.get_or_create(pk=1)
+        serializer = CompanyProfileSerializer(profile, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=400)
 
 
 class FinancialSummaryView(APIView):

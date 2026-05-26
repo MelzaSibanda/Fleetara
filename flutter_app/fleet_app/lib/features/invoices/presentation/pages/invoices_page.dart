@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/service_locator.dart';
-import '../../../../core/services/firestore_service.dart';
+import '../../../../core/network/api_client.dart';
 import '../../../dashboard/presentation/widgets/app_shell.dart';
 
 class InvoicesPage extends StatefulWidget {
@@ -17,7 +17,6 @@ class _InvoicesPageState extends State<InvoicesPage> {
   double _revenue  = 0;
   double _expenses = 0;
   double _outstanding = 0;
-  final _fs = sl<FirestoreService>();
 
   static const _filters = ['all', 'receivable', 'payable', 'overdue'];
 
@@ -27,14 +26,12 @@ class _InvoicesPageState extends State<InvoicesPage> {
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
-      final snap = await _fs.db.collection('invoices')
-          .orderBy('created_at', descending: true)
-          .get();
-      final all = _fs.docsToList(snap);
+      final res = await sl<ApiClient>().dio.get('/invoices/');
+      final all = List<Map>.from(res.data as List);
 
       double revenue = 0, expenses = 0, outstanding = 0;
       for (final inv in all) {
-        final total = (inv['total'] as num?)?.toDouble() ?? 0;
+        final total = double.tryParse(inv['total']?.toString() ?? '0') ?? 0;
         if (inv['invoice_type'] == 'receivable') {
           if (inv['status'] == 'paid') {
             revenue += total;
@@ -183,6 +180,7 @@ class _InvoicesPageState extends State<InvoicesPage> {
                     itemBuilder: (_, i) => _InvoiceRow(
                       inv: _invoices[i],
                       statusColor: _statusColor(_invoices[i]['status'] ?? ''),
+                      onTap: () => context.go('/invoices/${_invoices[i]['id']}'),
                     ),
                   ),
                 ),
@@ -207,16 +205,19 @@ class _HeroStat extends StatelessWidget {
 }
 
 class _InvoiceRow extends StatelessWidget {
-  final Map   inv;
-  final Color statusColor;
-  const _InvoiceRow({required this.inv, required this.statusColor});
+  final Map          inv;
+  final Color        statusColor;
+  final VoidCallback onTap;
+  const _InvoiceRow({required this.inv, required this.statusColor, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     final isReceivable = inv['invoice_type'] == 'receivable';
     final arrowColor   = isReceivable ? AppTheme.emerald : AppTheme.rose;
 
-    return Container(
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
@@ -258,6 +259,6 @@ class _InvoiceRow extends StatelessWidget {
           ),
         ]),
       ]),
-    );
+    ));
   }
 }

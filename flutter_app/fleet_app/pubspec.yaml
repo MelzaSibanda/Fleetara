@@ -48,6 +48,9 @@ dependencies:
   # Dependency injection
   get_it: ^7.6.7
 
+  # HTTP client
+  dio: ^5.7.0
+
   # Local storage
   shared_preferences: ^2.2.2
 

@@ -19,6 +19,7 @@ import '../../features/fuel/presentation/pages/add_fuel_page.dart';
 import '../../features/invoices/presentation/pages/invoices_page.dart';
 import '../../features/invoices/presentation/pages/add_invoice_page.dart';
 import '../../features/invoices/presentation/pages/financial_summary_page.dart';
+import '../../features/invoices/presentation/pages/invoice_preview_page.dart';
 import '../../features/tyres/presentation/pages/tyres_page.dart';
 import '../../features/services/presentation/pages/services_page.dart';
 import '../../features/daily_checks/presentation/pages/daily_checks_page.dart';
@@ -82,9 +83,14 @@ GoRouter buildRouter(AuthBloc authBloc, ChangeNotifier refreshListenable) {
       ),
       GoRoute(path: '/fuel',             builder: (_, __) => const FuelPage()),
       GoRoute(path: '/fuel/add',         builder: (_, __) => const AddFuelPage()),
-      GoRoute(path: '/invoices',         builder: (_, __) => const InvoicesPage()),
-      GoRoute(path: '/invoices/add',     builder: (_, __) => const AddInvoicePage()),
-      GoRoute(path: '/invoices/summary', builder: (_, __) => const FinancialSummaryPage()),
+      GoRoute(path: '/invoices',              builder: (_, __) => const InvoicesPage()),
+      GoRoute(path: '/invoices/add',          builder: (_, __) => const AddInvoicePage()),
+      GoRoute(path: '/invoices/summary',      builder: (_, __) => const FinancialSummaryPage()),
+      GoRoute(
+        path: '/invoices/:id',
+        builder: (_, state) => InvoicePreviewPage(
+          invoiceId: int.parse(state.pathParameters['id']!)),
+      ),
       GoRoute(path: '/tyres',            builder: (_, __) => const TyresPage()),
       GoRoute(path: '/services',         builder: (_, __) => const ServicesPage()),
       GoRoute(path: '/daily-checks',     builder: (_, __) => const DailyChecksPage()),
