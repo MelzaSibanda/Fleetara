@@ -15,7 +15,21 @@
       "Bash(cmd /c \"taskkill /F /PID 18460 /PID 16232 /PID 10800\")",
       "Bash(python manage.py makemigrations daily_checks)",
       "Bash(until grep *)",
-      "Read(//c/Users/nkund/AppData/Local/Temp/claude/c--Users-nkund-OneDrive-Documents/GitHub/Fleetara/flutter_app/**)"
+      "Read(//c/Users/nkund/AppData/Local/Temp/claude/c--Users-nkund-OneDrive-Documents/GitHub/Fleetara/flutter_app/**)",
+      "Read(//c/Users/nkund/**)",
+      "Bash(where python *)",
+      "Bash(where pip *)",
+      "Bash(pip list *)",
+      "Bash(where flutter *)",
+      "Bash(flutter --version)",
+      "Bash(python manage.py migrate --check)",
+      "Bash(python manage.py runserver 8000)",
+      "Bash(curl -s http://127.0.0.1:8000/api/)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://127.0.0.1:8000/)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://127.0.0.1:8000/api/users/)",
+      "Bash(curl -s -w \"\\\\n%{http_code}\" http://127.0.0.1:8000/)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://127.0.0.1:8000/api/auth/)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://127.0.0.1:8000/api/auth/login/)"
     ]
   }
 }
