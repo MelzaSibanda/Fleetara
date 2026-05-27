@@ -20,6 +20,8 @@ import '../../features/invoices/presentation/pages/invoices_page.dart';
 import '../../features/invoices/presentation/pages/add_invoice_page.dart';
 import '../../features/invoices/presentation/pages/financial_summary_page.dart';
 import '../../features/invoices/presentation/pages/invoice_preview_page.dart';
+import '../../features/invoices/presentation/pages/statement_generator_page.dart';
+import '../../features/invoices/presentation/pages/statement_preview_page.dart';
 import '../../features/tyres/presentation/pages/tyres_page.dart';
 import '../../features/services/presentation/pages/services_page.dart';
 import '../../features/daily_checks/presentation/pages/daily_checks_page.dart';
@@ -86,6 +88,19 @@ GoRouter buildRouter(AuthBloc authBloc, ChangeNotifier refreshListenable) {
       GoRoute(path: '/invoices',              builder: (_, __) => const InvoicesPage()),
       GoRoute(path: '/invoices/add',          builder: (_, __) => const AddInvoicePage()),
       GoRoute(path: '/invoices/summary',      builder: (_, __) => const FinancialSummaryPage()),
+      GoRoute(path: '/invoices/statement',    builder: (_, __) => const StatementGeneratorPage()),
+      GoRoute(
+        path: '/invoices/statement/preview',
+        builder: (_, state) {
+          final p = (state.extra as Map<String, String>?) ?? {};
+          return StatementPreviewPage(
+            client:      p['client']       ?? '',
+            statementNo: p['statement_no'] ?? '',
+            fromDate:    p['from_date']    ?? '',
+            toDate:      p['to_date']      ?? '',
+          );
+        },
+      ),
       GoRoute(
         path: '/invoices/:id',
         builder: (_, state) => InvoicePreviewPage(

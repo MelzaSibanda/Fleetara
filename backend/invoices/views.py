@@ -1,3 +1,6 @@
+from decimal  import Decimal
+from datetime import date as date_type
+
 from rest_framework import generics
 from rest_framework.views    import APIView
 from rest_framework.response import Response
@@ -55,6 +58,74 @@ class CompanyProfileView(APIView):
             serializer.save()
             return Response(serializer.data)
         return Response(serializer.errors, status=400)
+
+
+class StatementView(APIView):
+    permission_classes = [IsFleetManager]
+
+    def get(self, request):
+        client    = request.query_params.get('client', '').strip()
+        from_date = request.query_params.get('from_date', '')
+        to_date   = request.query_params.get('to_date', '')
+
+        qs = Invoice.objects.filter(invoice_type='receivable').order_by('issue_date')
+        if client:
+            qs = qs.filter(party_name__icontains=client)
+        if from_date:
+            qs = qs.filter(issue_date__gte=from_date)
+        if to_date:
+            qs = qs.filter(issue_date__lte=to_date)
+
+        profile, _ = CompanyProfile.objects.get_or_create(pk=1)
+        first      = qs.first()
+
+        lines          = []
+        total_charges  = Decimal('0')
+        total_credits  = Decimal('0')
+
+        for inv in qs:
+            inv_total = inv.total or Decimal('0')
+            charge_date = inv.issue_date
+            lines.append({
+                'sort_date':      charge_date,
+                'date':           charge_date.strftime('%d-%b-%y') if charge_date else '',
+                'invoice_number': inv.invoice_number,
+                'description':    inv.description or '',
+                'charges':        str(inv_total),
+                'credits':        '',
+                'type':           'charge',
+            })
+            total_charges += inv_total
+
+            if inv.status == 'paid':
+                pay_date = inv.paid_date or inv.due_date or inv.issue_date
+                lines.append({
+                    'sort_date':      pay_date,
+                    'date':           pay_date.strftime('%d-%b-%y') if pay_date else '',
+                    'invoice_number': '',
+                    'description':    'Payment received - Thank you',
+                    'charges':        '',
+                    'credits':        str(inv_total),
+                    'type':           'payment',
+                })
+                total_credits += inv_total
+
+        lines.sort(key=lambda x: (x.pop('sort_date') or date_type.min))
+
+        return Response({
+            'company': CompanyProfileSerializer(profile).data,
+            'client': {
+                'name':    first.party_name    if first else client,
+                'address': first.party_address if first else '',
+            },
+            'lines':  lines,
+            'totals': {
+                'previous_balance': '0.00',
+                'total_credits':    str(total_credits),
+                'total_charges':    str(total_charges),
+                'balance_due':      str(total_charges - total_credits),
+            },
+        })
 
 
 class FinancialSummaryView(APIView):

@@ -82,13 +82,16 @@ class Invoice(models.Model):
 
 
 class CompanyProfile(models.Model):
-    name        = models.CharField(max_length=200, default='My Fleet Company')
-    reg_no      = models.CharField(max_length=50, blank=True)
-    vat_no      = models.CharField(max_length=50, blank=True)
-    address     = models.TextField(blank=True)
-    bank_name   = models.CharField(max_length=100, blank=True)
-    bank_acc    = models.CharField(max_length=50, blank=True)
-    bank_branch = models.CharField(max_length=50, blank=True)
+    name           = models.CharField(max_length=200, default='My Fleet Company')
+    reg_no         = models.CharField(max_length=50, blank=True)
+    vat_no         = models.CharField(max_length=50, blank=True)
+    address        = models.TextField(blank=True)
+    phone          = models.CharField(max_length=30, blank=True)
+    email          = models.EmailField(blank=True)
+    contact_person = models.CharField(max_length=100, blank=True)
+    bank_name      = models.CharField(max_length=100, blank=True)
+    bank_acc       = models.CharField(max_length=50, blank=True)
+    bank_branch    = models.CharField(max_length=50, blank=True)
 
     class Meta:
         verbose_name = 'Company Profile'

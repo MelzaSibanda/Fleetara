@@ -95,6 +95,17 @@ class _InvoicesPageState extends State<InvoicesPage> {
           child: const Text('Report', style: TextStyle(fontSize: 13, color: AppTheme.textPrimary)),
         ),
         const SizedBox(width: 8),
+        TextButton(
+          onPressed: () => context.go('/invoices/statement'),
+          style: TextButton.styleFrom(
+            side: const BorderSide(color: AppTheme.border, width: 0.5),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            minimumSize: const Size(0, 32),
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+          ),
+          child: const Text('Statement', style: TextStyle(fontSize: 13, color: AppTheme.textPrimary)),
+        ),
+        const SizedBox(width: 8),
         ElevatedButton.icon(
           onPressed: () => context.go('/invoices/add'),
           icon: const Icon(Icons.add, size: 16, color: Colors.white),
