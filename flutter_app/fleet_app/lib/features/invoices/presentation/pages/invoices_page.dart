@@ -26,8 +26,10 @@ class _InvoicesPageState extends State<InvoicesPage> {
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
-      final res = await sl<ApiClient>().dio.get('/invoices/');
-      final all = List<Map>.from(res.data as List);
+      final res  = await sl<ApiClient>().dio.get('/invoices/');
+      final body = res.data;
+      final all  = List<Map>.from(
+        body is List ? body : ((body['results'] as List?) ?? []));
 
       double revenue = 0, expenses = 0, outstanding = 0;
       for (final inv in all) {
