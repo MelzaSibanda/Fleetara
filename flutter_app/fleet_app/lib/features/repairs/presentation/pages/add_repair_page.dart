@@ -61,7 +61,21 @@ class _AddRepairPageState extends State<AddRepairPage> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _loading = true);
     try {
-      final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+      final fbUser = FirebaseAuth.instance.currentUser;
+      final uid    = fbUser?.uid ?? '';
+
+      // Resolve display name: Firebase Auth → Firestore users doc → fallback
+      String reporterName = fbUser?.displayName ?? '';
+      if (reporterName.isEmpty && uid.isNotEmpty) {
+        try {
+          final doc = await _fs.db.collection('users').doc(uid).get();
+          if (doc.exists) {
+            final data = doc.data() as Map<String, dynamic>;
+            reporterName = data['full_name'] ?? data['first_name'] ?? '';
+          }
+        } catch (_) {}
+      }
+
       await _fs.db.collection('repairs').add({
         'title':              _titleCtrl.text.trim(),
         'description':        _descCtrl.text.trim(),
@@ -72,7 +86,7 @@ class _AddRepairPageState extends State<AddRepairPage> {
         'workshop_name':      _workshopCtrl.text.trim(),
         'repair_cost':        _costCtrl.text.isEmpty ? null : double.parse(_costCtrl.text),
         'reported_by':        uid,
-        'reported_by_name':   '',
+        'reported_by_name':   reporterName,
         'reported_at':        DateTime.now().toIso8601String(),
       });
       if (mounted) {

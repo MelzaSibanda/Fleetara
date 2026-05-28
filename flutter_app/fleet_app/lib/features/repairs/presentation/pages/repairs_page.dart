@@ -45,7 +45,37 @@ class _RepairsPageState extends State<RepairsPage> {
           snap = await _fs.db.collection('repairs')
             .orderBy('reported_at', descending: true).get();
       }
-      setState(() { _repairs = _fs.docsToList(snap); _loading = false; });
+      final repairs = _fs.docsToList(snap);
+
+      // Back-fill missing reporter names from users collection
+      final missingUids = repairs
+        .where((r) => (r['reported_by_name'] ?? '').toString().isEmpty
+                   && (r['reported_by'] ?? '').toString().isNotEmpty)
+        .map((r) => r['reported_by'].toString())
+        .toSet();
+
+      if (missingUids.isNotEmpty) {
+        final userCache = <String, String>{};
+        await Future.wait(missingUids.map((uid) async {
+          try {
+            final doc = await _fs.db.collection('users').doc(uid).get();
+            if (doc.exists) {
+              final data = doc.data() as Map<String, dynamic>;
+              userCache[uid] = data['full_name']?.toString()
+                ?? data['first_name']?.toString() ?? '';
+            }
+          } catch (_) {}
+        }));
+        for (final r in repairs) {
+          final uid = r['reported_by']?.toString() ?? '';
+          if ((r['reported_by_name'] ?? '').toString().isEmpty
+              && userCache.containsKey(uid)) {
+            r['reported_by_name'] = userCache[uid];
+          }
+        }
+      }
+
+      setState(() { _repairs = repairs; _loading = false; });
     } catch (_) { setState(() => _loading = false); }
   }
 
