@@ -66,34 +66,66 @@ class DailyCheckModel {
     this.trailerSuspension = false,
   });
 
+  // Handles both old bool values and new string values ('good'/'low'/'critical').
+  static bool _b(dynamic v) {
+    if (v is bool) return v;
+    if (v is String) return v == 'good' || v == 'true';
+    return false;
+  }
+
+  // Derives tyrePressure from per-tyre strings (new schema) or legacy bool.
+  static bool _tyrePressure(Map<String, dynamic> j) {
+    if (j.containsKey('tyre_fl')) {
+      const bad = {'low_pressure', 'burst_risk'};
+      return !bad.contains(j['tyre_fl']) && !bad.contains(j['tyre_fr']) &&
+             !bad.contains(j['tyre_rl']) && !bad.contains(j['tyre_rr']);
+    }
+    return _b(j['tyre_pressure']);
+  }
+
+  // Derives tyreCondition from per-tyre strings (new schema) or legacy bool.
+  static bool _tyreCondition(Map<String, dynamic> j) {
+    if (j.containsKey('tyre_fl')) {
+      const bad = {'damaged', 'burst_risk'};
+      return !bad.contains(j['tyre_fl']) && !bad.contains(j['tyre_fr']) &&
+             !bad.contains(j['tyre_rl']) && !bad.contains(j['tyre_rr']);
+    }
+    return _b(j['tyre_condition']);
+  }
+
   factory DailyCheckModel.fromJson(Map<String, dynamic> j) => DailyCheckModel(
-    id:                  j['id']?.toString()       ?? '',
-    horseId:             j['horse_id']?.toString() ?? j['horse']?.toString() ?? '',
+    id:                  j['id']?.toString()         ?? '',
+    horseId:             j['horse_id']?.toString()   ?? j['horse']?.toString() ?? '',
     trailerId:           j['trailer_id']?.toString() ?? j['trailer']?.toString(),
-    tripId:              j['trip_id']?.toString()   ?? j['trip']?.toString(),
-    overallStatus:       j['overall_status']        ?? 'pass',
-    checkDate:           j['check_date']            ?? '',
-    notes:               j['notes'],
-    odometer:            j['odometer'] is int ? j['odometer'] : null,
-    oilLevel:            j['oil_level']            ?? false,
-    coolantLevel:        j['coolant_level']         ?? false,
-    noEngineLeaks:       j['no_engine_leaks']       ?? false,
-    tyrePressure:        j['tyre_pressure']         ?? false,
-    tyreCondition:       j['tyre_condition']        ?? false,
-    wheelNuts:           j['wheel_nuts']            ?? false,
-    brakeResponse:       j['brake_response']        ?? false,
-    airPressure:         j['air_pressure']          ?? false,
-    headlights:          j['headlights']            ?? false,
-    indicators:          j['indicators']            ?? false,
-    brakeLights:         j['brake_lights']          ?? false,
-    fireExtinguisher:    j['fire_extinguisher']     ?? false,
-    reflectiveTriangles: j['reflective_triangles']  ?? false,
-    seatbelt:            j['seatbelt']              ?? false,
-    trailerTyres:        j['trailer_tyres']         ?? false,
-    couplingSystem:      j['coupling_system']       ?? false,
-    trailerLights:       j['trailer_lights']        ?? false,
-    cargoLocking:        j['cargo_locking']         ?? false,
-    trailerSuspension:   j['trailer_suspension']    ?? false,
+    tripId:              j['trip_id']?.toString()    ?? j['trip']?.toString(),
+    overallStatus:       j['overall_status']         ?? 'pass',
+    checkDate:           j['check_date']             ?? '',
+    notes:               j['notes']?.toString(),
+    odometer:            j['odometer'] is int
+                           ? j['odometer'] as int
+                           : int.tryParse(j['odometer']?.toString() ?? ''),
+    oilLevel:            _b(j['oil_level']),
+    coolantLevel:        _b(j['coolant_level']),
+    noEngineLeaks:       _b(j['no_engine_leaks'] ?? j['no_leaks']),
+    tyrePressure:        _tyrePressure(j),
+    tyreCondition:       _tyreCondition(j),
+    wheelNuts:           _b(j['wheel_nuts']),
+    brakeResponse:       _b(j['brake_response']),
+    airPressure:         _b(j['air_pressure']),
+    headlights:          _b(j['headlights']),
+    indicators:          _b(j['indicators']),
+    brakeLights:         _b(j['brake_lights']),
+    fireExtinguisher:    _b(j['fire_extinguisher']),
+    reflectiveTriangles: _b(j['reflective_triangles']),
+    seatbelt:            _b(j['seatbelt']),
+    // new schema uses 'trailer_tyres' (bool), old used same key — compatible
+    trailerTyres:        _b(j['trailer_tyres']),
+    // new schema uses 'coupling_lock', old used 'coupling_system'
+    couplingSystem:      _b(j['coupling_lock'] ?? j['coupling_system']),
+    trailerLights:       _b(j['trailer_lights']),
+    // new schema uses 'cargo_straps', old used 'cargo_locking'
+    cargoLocking:        _b(j['cargo_straps'] ?? j['cargo_locking']),
+    trailerSuspension:   _b(j['trailer_suspension']),
   );
 
   Color get statusColor {

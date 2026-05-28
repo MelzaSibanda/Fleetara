@@ -101,25 +101,21 @@ class _DriverTripsPageState extends State<DriverTripsPage> {
           const LinearProgressIndicator(color: AppTheme.primary, minHeight: 2),
         Expanded(
           child: _loading
-            ? const Center(child: CircularProgressIndicator(color: AppTheme.primary, strokeWidth: 2))
+            ? const Center(child: CircularProgressIndicator(color: AppTheme.accent, strokeWidth: 2))
             : _trips.isEmpty
               ? const EmptyState(
                   icon: Icons.route_outlined,
                   title: 'No trips found',
                   subtitle: 'Your assigned trips will appear here.',
                 )
-              : RefreshIndicator(
-                  color: AppTheme.primary,
+              : RListBody(
+                  twoColumn: true,
                   onRefresh: _loadTrips,
-                  child: ListView.builder(
-                    padding: Responsive.pagePadding(context),
-                    itemCount: _trips.length,
-                    itemBuilder: (_, i) => _DriverTripCard(
-                      trip: _trips[i],
-                      onTap: () => context.go('/trips/${_trips[i].id}'),
-                      onStatusUpdate: _updateStatus,
-                    ),
-                  ),
+                  cards: _trips.map((t) => _DriverTripCard(
+                    trip:           t,
+                    onTap:          () => context.go('/trips/${t.id}'),
+                    onStatusUpdate: _updateStatus,
+                  )).toList(),
                 ),
         ),
       ]),

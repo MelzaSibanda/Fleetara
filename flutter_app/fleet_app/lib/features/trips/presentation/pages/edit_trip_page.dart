@@ -183,7 +183,7 @@ class _EditTripPageState extends State<EditTripPage> {
         ),
       ),
       body: _fetching
-        ? const Center(child: CircularProgressIndicator(color: AppTheme.primary))
+        ? const Center(child: CircularProgressIndicator(color: AppTheme.accent))
         : SingleChildScrollView(
             padding: const EdgeInsets.all(20),
             child: Center(

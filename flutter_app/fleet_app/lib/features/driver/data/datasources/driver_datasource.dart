@@ -43,11 +43,13 @@ class DriverDataSource {
   }
 
   Future<List<DailyCheckModel>> getDailyChecks() async {
-    final snap = await _fs.db.collection('daily_checks')
-        .orderBy('check_date', descending: true)
-        .get();
+    final uid  = FirebaseAuth.instance.currentUser?.uid;
+    Query query = _fs.db.collection('daily_checks')
+        .orderBy('check_date', descending: true);
+    if (uid != null) query = query.where('driver_id', isEqualTo: uid);
+    final snap = await query.get();
     return snap.docs
-        .map((d) => DailyCheckModel.fromJson({'id': d.id, ...d.data()}))
+        .map((d) => DailyCheckModel.fromJson({'id': d.id, ...(d.data() as Map<String, dynamic>)}))
         .toList();
   }
 

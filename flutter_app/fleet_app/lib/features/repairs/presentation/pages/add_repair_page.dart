@@ -104,7 +104,7 @@ class _AddRepairPageState extends State<AddRepairPage> {
         ),
       ),
       body: _fetching
-        ? const Center(child: CircularProgressIndicator(color: AppTheme.primary))
+        ? const Center(child: CircularProgressIndicator(color: AppTheme.accent))
         : SingleChildScrollView(
             padding: Responsive.pagePadding(context),
             child: Center(

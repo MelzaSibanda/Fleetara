@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/service_locator.dart';
-import '../../../../core/network/api_client.dart';
+import '../../../../core/services/firestore_service.dart';
 
 @JS('window.print')
 external void _windowPrint();
@@ -26,7 +26,8 @@ class StatementPreviewPage extends StatefulWidget {
 }
 
 class _StatementPreviewPageState extends State<StatementPreviewPage> {
-  Map  _data    = {};
+  final _fs = sl<FirestoreService>();
+  Map<String, dynamic> _data    = {};
   bool _loading = true;
 
   static const _navy = Color(0xFF1A2F5E);
@@ -36,12 +37,56 @@ class _StatementPreviewPageState extends State<StatementPreviewPage> {
 
   Future<void> _load() async {
     try {
-      final res = await sl<ApiClient>().dio.get('/invoices/statement/', queryParameters: {
-        'client':     widget.client,
-        'from_date':  widget.fromDate,
-        'to_date':    widget.toDate,
+      final snap = await _fs.db.collection('invoices')
+          .where('party_name',   isEqualTo: widget.client)
+          .where('invoice_type', isEqualTo: 'receivable')
+          .get();
+      final companyDoc = await _fs.db.collection('settings').doc('company_profile').get();
+
+      final all = _fs.docsToList(snap);
+      final invoices = all.where((inv) {
+        final date = inv['issue_date'] as String? ?? '';
+        if (widget.fromDate.isNotEmpty && date.compareTo(widget.fromDate) < 0) return false;
+        if (widget.toDate.isNotEmpty   && date.compareTo(widget.toDate)   > 0) return false;
+        return true;
+      }).toList()
+        ..sort((a, b) => (a['issue_date'] as String? ?? '')
+            .compareTo(b['issue_date'] as String? ?? ''));
+
+      double totalCharges = 0, totalCredits = 0;
+      final lines = invoices.map((inv) {
+        final total  = double.tryParse(inv['total']?.toString() ?? '0') ?? 0;
+        final isPaid = inv['status'] == 'paid';
+        totalCharges += total;
+        if (isPaid) totalCredits += total;
+        return <String, dynamic>{
+          'date':           inv['issue_date']     ?? '',
+          'invoice_number': inv['invoice_number'] ?? '',
+          'description':    inv['description']    ?? '',
+          'charges':        isPaid ? null : total,
+          'credits':        isPaid ? total : null,
+          'type':           isPaid ? 'payment' : 'invoice',
+        };
+      }).toList();
+
+      final firstInv = invoices.isNotEmpty ? invoices.first : <String, dynamic>{};
+
+      setState(() {
+        _data = {
+          'company': companyDoc.exists ? _fs.docToMap(companyDoc) : <String, dynamic>{},
+          'client': {
+            'name':    firstInv['party_name']    ?? widget.client,
+            'address': firstInv['party_address'] ?? '',
+          },
+          'totals': {
+            'total_charges': totalCharges,
+            'total_credits': totalCredits,
+            'balance_due':   totalCharges - totalCredits,
+          },
+          'lines': lines,
+        };
+        _loading = false;
       });
-      setState(() { _data = res.data as Map; _loading = false; });
     } catch (_) { setState(() => _loading = false); }
   }
 
@@ -91,7 +136,7 @@ class _StatementPreviewPageState extends State<StatementPreviewPage> {
         ],
       ),
       body: _loading
-        ? const Center(child: CircularProgressIndicator(color: AppTheme.primary))
+        ? const Center(child: CircularProgressIndicator(color: AppTheme.accent))
         : SingleChildScrollView(
             padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 16),
             child: Center(
@@ -124,11 +169,7 @@ class _StatementPreviewPageState extends State<StatementPreviewPage> {
     final company = (_data['company'] ?? {}) as Map;
     return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Container(
-          width: 60, height: 60,
-          decoration: BoxDecoration(color: _navy, borderRadius: BorderRadius.circular(10)),
-          child: const Icon(Icons.local_shipping, color: Colors.white, size: 32),
-        ),
+        Image.asset('assets/logos/fleetara_logo.png', width: 60, height: 60),
         const SizedBox(height: 6),
         Text(company['name']?.toString() ?? '',
           style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _navy)),

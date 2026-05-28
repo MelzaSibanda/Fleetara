@@ -83,14 +83,7 @@ class _RegisterPageState extends State<RegisterPage> {
                       ),
                       const SizedBox(height: 28),
                       Row(children: [
-                        Container(
-                          width: 30, height: 30,
-                          decoration: BoxDecoration(
-                            color: AppTheme.primary,
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: const Icon(Icons.local_shipping, color: Colors.white, size: 16),
-                        ),
+                        Image.asset('assets/logos/fleetara_logo.png', width: 30, height: 30),
                         const SizedBox(width: 8),
                         const Text('Fleetara',
                           style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500,

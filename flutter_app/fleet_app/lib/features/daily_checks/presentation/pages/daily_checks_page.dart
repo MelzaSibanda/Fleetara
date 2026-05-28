@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/service_locator.dart';
 import '../../../../core/services/firestore_service.dart';
+import '../../../../core/utils/responsive.dart';
 import '../../../dashboard/presentation/widgets/app_shell.dart';
 
 class DailyChecksPage extends StatefulWidget {
@@ -15,6 +16,8 @@ class _DailyChecksPageState extends State<DailyChecksPage> {
   bool   _loading = true;
   String _filter  = 'all';
   final _fs = sl<FirestoreService>();
+
+  static const _filters = ['all', 'pass', 'minor_issue', 'critical'];
 
   @override
   void initState() { super.initState(); _load(); }
@@ -34,19 +37,29 @@ class _DailyChecksPageState extends State<DailyChecksPage> {
 
   Color _statusColor(String s) {
     switch (s) {
-      case 'pass':    return AppTheme.emerald;
-      case 'warning': return AppTheme.amber;
-      case 'fail':    return AppTheme.rose;
-      default:        return AppTheme.textMuted;
+      case 'pass':        return AppTheme.emerald;
+      case 'minor_issue': return AppTheme.amber;
+      case 'critical':    return AppTheme.rose;
+      default:            return AppTheme.textMuted;
     }
   }
 
   IconData _statusIcon(String s) {
     switch (s) {
-      case 'pass':    return Icons.check_circle_outline;
-      case 'warning': return Icons.warning_amber_outlined;
-      case 'fail':    return Icons.cancel_outlined;
-      default:        return Icons.help_outline;
+      case 'pass':        return Icons.check_circle_outline;
+      case 'minor_issue': return Icons.warning_amber_outlined;
+      case 'critical':    return Icons.cancel_outlined;
+      default:            return Icons.help_outline;
+    }
+  }
+
+  String _filterLabel(String f) {
+    switch (f) {
+      case 'all':         return 'All';
+      case 'pass':        return 'Pass';
+      case 'minor_issue': return 'Minor Issue';
+      case 'critical':    return 'Critical';
+      default:            return f;
     }
   }
 
@@ -55,12 +68,15 @@ class _DailyChecksPageState extends State<DailyChecksPage> {
     return AppShell(
       title: 'Daily Checks',
       actions: [
-        TextButton.icon(
+        ElevatedButton.icon(
           onPressed: () => context.go('/daily-checks/add'),
-          icon: const Icon(Icons.add, size: 16, color: AppTheme.primary),
-          label: const Text('New Check',
-            style: TextStyle(color: AppTheme.primary, fontSize: 12)),
+          icon: const Icon(Icons.add, size: 16, color: Colors.white),
+          label: const Text('New Check', style: TextStyle(color: Colors.white)),
+          style: ElevatedButton.styleFrom(
+            minimumSize: const Size(0, 32),
+            padding: const EdgeInsets.symmetric(horizontal: 14)),
         ),
+        const SizedBox(width: 8),
       ],
       child: Column(children: [
         Container(
@@ -68,38 +84,39 @@ class _DailyChecksPageState extends State<DailyChecksPage> {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
-            child: Row(children: [
-              for (final f in ['all', 'pass', 'warning', 'fail'])
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: GestureDetector(
-                    onTap: () { setState(() => _filter = f); _load(); },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: _filter == f
-                          ? AppTheme.primary.withValues(alpha: 0.12)
-                          : AppTheme.background,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: _filter == f ? AppTheme.primary : AppTheme.border,
-                          width: 0.5),
-                      ),
-                      child: Text(
-                        f == 'all' ? 'All' : '${f[0].toUpperCase()}${f.substring(1)}',
-                        style: TextStyle(
-                          fontSize: 12, fontWeight: FontWeight.w500,
-                          color: _filter == f ? AppTheme.primary : AppTheme.textMuted),
-                      ),
-                    ),
+            child: Row(children: _filters.map((f) {
+              final active = _filter == f;
+              return Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: GestureDetector(
+                  onTap: () { setState(() => _filter = f); _load(); },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 160),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: active
+                        ? AppTheme.accent.withValues(alpha: 0.10)
+                        : AppTheme.background,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: active
+                          ? AppTheme.accent.withValues(alpha: 0.4)
+                          : AppTheme.border,
+                        width: active ? 1.0 : 0.5)),
+                    child: Text(_filterLabel(f), style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: active ? FontWeight.w600 : FontWeight.w400,
+                      color: active ? AppTheme.accent : AppTheme.textMuted)),
                   ),
                 ),
-            ]),
+              );
+            }).toList()),
           ),
         ),
         Expanded(
           child: _loading
-            ? const Center(child: CircularProgressIndicator(color: AppTheme.primary))
+            ? const Center(child: CircularProgressIndicator(
+                color: AppTheme.accent, strokeWidth: 2))
             : _checks.isEmpty
               ? EmptyState(
                   icon: Icons.assignment_outlined,
@@ -107,22 +124,16 @@ class _DailyChecksPageState extends State<DailyChecksPage> {
                   subtitle: 'Pre-trip vehicle checks will appear here.',
                   action: ElevatedButton(
                     onPressed: () => context.go('/daily-checks/add'),
-                    style: ElevatedButton.styleFrom(minimumSize: const Size(160, 40)),
-                    child: const Text('Submit Check'),
-                  ),
+                    child: const Text('Submit Check')),
                 )
-              : RefreshIndicator(
-                  color: AppTheme.primary,
+              : RListBody(
+                  twoColumn: true,
                   onRefresh: _load,
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: _checks.length,
-                    itemBuilder: (_, i) => _CheckCard(
-                      check:       Map<String, dynamic>.from(_checks[i]),
-                      statusColor: _statusColor,
-                      statusIcon:  _statusIcon,
-                    ),
-                  ),
+                  cards: _checks.map((c) => _CheckCard(
+                    check:       Map<String, dynamic>.from(c),
+                    statusColor: _statusColor,
+                    statusIcon:  _statusIcon,
+                  )).toList(),
                 ),
         ),
       ]),
@@ -131,10 +142,9 @@ class _DailyChecksPageState extends State<DailyChecksPage> {
 }
 
 class _CheckCard extends StatelessWidget {
-  final Map<String, dynamic> check;
-  final Color    Function(String) statusColor;
-  final IconData Function(String) statusIcon;
-
+  final Map<String, dynamic>        check;
+  final Color    Function(String)   statusColor;
+  final IconData Function(String)   statusIcon;
   const _CheckCard({required this.check, required this.statusColor,
     required this.statusIcon});
 
@@ -146,87 +156,105 @@ class _CheckCard extends StatelessWidget {
     final driver = check['driver_name'] ?? '';
     final reg    = check['horse_reg']   ?? '';
     final odo    = check['odometer']    ?? 0;
-    final fuel   = (check['fuel_level'] ?? '').toString().replaceAll('_', '/');
 
     final issues = <String>[];
-    if (check['oil_ok']           == false) issues.add('Oil');
-    if (check['coolant_ok']       == false) issues.add('Coolant');
-    if (check['tyre_pressure_ok'] == false) issues.add('Tyres');
-    if (check['lights_ok']        == false) issues.add('Lights');
-    if (check['brakes_ok']        == false) issues.add('Brakes');
-    if (check['wipers_ok']        == false) issues.add('Wipers');
+    final tyreList = ['tyre_fl','tyre_fr','tyre_rl','tyre_rr']
+        .map((k) => check[k]?.toString() ?? 'good').toList();
+    if (tyreList.any((t) => t == 'damaged' || t == 'burst_risk')) {
+      issues.add('Critical tyre');
+    } else if (tyreList.any((t) => t == 'worn' || t == 'low_pressure')) {
+      issues.add('Tyre wear');
+    }
+    if (check['oil_level'] == 'critical' || check['coolant_level'] == 'critical' ||
+        check['brake_fluid'] == 'critical') {
+      issues.add('Fluid critical');
+    } else if (check['oil_level'] == 'low' || check['coolant_level'] == 'low' ||
+        check['brake_fluid'] == 'low') {
+      issues.add('Fluid low');
+    }
+    if (check['brake_response'] == false || check['air_pressure'] == false) {
+      issues.add('Brakes');
+    }
+    if (check['headlights'] == false || check['brake_lights'] == false ||
+        check['indicators'] == false) {
+      issues.add('Lights');
+    }
+    if (check['fire_extinguisher'] == false) { issues.add('Fire ext missing'); }
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppTheme.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: status == 'fail'    ? AppTheme.rose.withValues(alpha: 0.3)
-               : status == 'warning' ? AppTheme.amber.withValues(alpha: 0.3)
-               : AppTheme.border,
-          width: 0.5),
-      ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Container(
-            width: 36, height: 36,
-            decoration: BoxDecoration(
-              color: sc.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(statusIcon(status), color: sc, size: 18),
-          ),
-          const SizedBox(width: 10),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(reg.isNotEmpty ? reg : 'Vehicle',
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500,
-                color: AppTheme.textPrimary)),
-            if (driver.isNotEmpty)
-              Text(driver, style: const TextStyle(fontSize: 11, color: AppTheme.textMuted)),
-          ])),
-          StatusPill(
-            label: '${status[0].toUpperCase()}${status.substring(1)}',
-            color: sc,
-          ),
-        ]),
-        const SizedBox(height: 10),
-        const Divider(height: 1, thickness: 0.5, color: AppTheme.border),
-        const SizedBox(height: 10),
-        Row(children: [
-          const Icon(Icons.calendar_today, size: 13, color: AppTheme.textMuted),
-          const SizedBox(width: 5),
-          Text(date.length >= 10 ? date.substring(0, 10) : date,
-            style: const TextStyle(fontSize: 11, color: AppTheme.textMuted)),
-          const SizedBox(width: 14),
-          const Icon(Icons.speed, size: 13, color: AppTheme.textMuted),
-          const SizedBox(width: 5),
-          Text('$odo km',
-            style: const TextStyle(fontSize: 11, color: AppTheme.textMuted)),
-          const SizedBox(width: 14),
-          const Icon(Icons.local_gas_station, size: 13, color: AppTheme.textMuted),
-          const SizedBox(width: 5),
-          Text(fuel,
-            style: const TextStyle(fontSize: 11, color: AppTheme.textMuted)),
-        ]),
-        if (issues.isNotEmpty) ...[
-          const SizedBox(height: 8),
+      decoration: status == 'critical'
+        ? BoxDecoration(
+            color: AppTheme.surface,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppTheme.rose.withValues(alpha: 0.25), width: 1),
+            boxShadow: [BoxShadow(
+              color: AppTheme.rose.withValues(alpha: 0.06),
+              blurRadius: 16, offset: const Offset(0, 6))])
+        : AppTheme.cardDecoration,
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            const Icon(Icons.warning_amber, size: 13, color: AppTheme.rose),
-            const SizedBox(width: 5),
-            Text('Issues: ${issues.join(', ')}',
-              style: const TextStyle(fontSize: 11, color: AppTheme.rose,
-                fontWeight: FontWeight.w500)),
+            Container(
+              width: 38, height: 38,
+              decoration: BoxDecoration(
+                color: sc.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10)),
+              child: Icon(statusIcon(status), color: sc, size: 19),
+            ),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(reg.isNotEmpty ? reg : 'Vehicle',
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600,
+                  color: AppTheme.textPrimary)),
+              if (driver.isNotEmpty)
+                Text(driver, style: const TextStyle(
+                  fontSize: 11, color: AppTheme.textMuted)),
+            ])),
+            StatusPill(
+              label: status == 'minor_issue' ? 'Minor Issue'
+                : '${status[0].toUpperCase()}${status.substring(1)}',
+              color: sc),
           ]),
-        ],
-        if ((check['notes'] ?? '').toString().isNotEmpty) ...[
-          const SizedBox(height: 6),
-          Text(check['notes'].toString(),
-            style: const TextStyle(fontSize: 11, color: AppTheme.textMuted),
-            maxLines: 2, overflow: TextOverflow.ellipsis),
-        ],
-      ]),
+          const SizedBox(height: 10),
+          const Divider(height: 1, thickness: 0.5, color: AppTheme.border),
+          const SizedBox(height: 10),
+          Row(children: [
+            const Icon(Icons.calendar_today_outlined, size: 12, color: AppTheme.textMuted),
+            const SizedBox(width: 5),
+            Text(date.length >= 10 ? date.substring(0, 10) : date,
+              style: const TextStyle(fontSize: 11, color: AppTheme.textMuted)),
+            const SizedBox(width: 14),
+            const Icon(Icons.speed_outlined, size: 12, color: AppTheme.textMuted),
+            const SizedBox(width: 5),
+            Text('$odo km',
+              style: const TextStyle(fontSize: 11, color: AppTheme.textMuted)),
+          ]),
+          if (issues.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: AppTheme.rose.withValues(alpha: 0.07),
+                borderRadius: BorderRadius.circular(8)),
+              child: Row(children: [
+                const Icon(Icons.warning_amber_rounded, size: 13, color: AppTheme.rose),
+                const SizedBox(width: 6),
+                Text('Issues: ${issues.join('  ·  ')}',
+                  style: const TextStyle(fontSize: 11, color: AppTheme.rose,
+                    fontWeight: FontWeight.w500)),
+              ]),
+            ),
+          ],
+          if ((check['notes'] ?? '').toString().isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(check['notes'].toString(),
+              style: const TextStyle(fontSize: 11, color: AppTheme.textMuted),
+              maxLines: 2, overflow: TextOverflow.ellipsis),
+          ],
+        ]),
+      ),
     );
   }
 }

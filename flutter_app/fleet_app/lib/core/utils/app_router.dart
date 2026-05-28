@@ -25,6 +25,9 @@ import '../../features/invoices/presentation/pages/statement_preview_page.dart';
 import '../../features/tyres/presentation/pages/tyres_page.dart';
 import '../../features/services/presentation/pages/services_page.dart';
 import '../../features/daily_checks/presentation/pages/daily_checks_page.dart';
+import '../../features/driver/presentation/pages/daily_check_form_page.dart';
+import '../../features/driver/presentation/pages/daily_check_history_page.dart';
+import '../../features/driver/presentation/pages/driver_trips_page.dart';
 import '../../features/repairs/presentation/pages/repairs_page.dart';
 import '../../features/repairs/presentation/pages/add_repair_page.dart';
 import '../../features/gps/presentation/pages/live_map_page.dart';
@@ -104,11 +107,15 @@ GoRouter buildRouter(AuthBloc authBloc, ChangeNotifier refreshListenable) {
       GoRoute(
         path: '/invoices/:id',
         builder: (_, state) => InvoicePreviewPage(
-          invoiceId: int.parse(state.pathParameters['id']!)),
+          invoiceId: state.pathParameters['id']!),
       ),
       GoRoute(path: '/tyres',            builder: (_, __) => const TyresPage()),
       GoRoute(path: '/services',         builder: (_, __) => const ServicesPage()),
       GoRoute(path: '/daily-checks',     builder: (_, __) => const DailyChecksPage()),
+      GoRoute(path: '/daily-checks/add', builder: (_, __) => const DailyCheckFormPage()),
+      GoRoute(path: '/driver/trips',      builder: (_, __) => const DriverTripsPage()),
+      GoRoute(path: '/driver/checks',    builder: (_, __) => const DailyCheckHistoryPage()),
+      GoRoute(path: '/driver/checks/add', builder: (_, __) => const DailyCheckFormPage()),
       GoRoute(path: '/repairs',          builder: (_, __) => const RepairsPage()),
       GoRoute(path: '/repairs/add',      builder: (_, __) => const AddRepairPage()),
       GoRoute(path: '/gps/live',         builder: (_, __) => const LiveMapPage()),

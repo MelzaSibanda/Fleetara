@@ -3,18 +3,19 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/service_locator.dart';
-import '../../../../core/network/api_client.dart';
+import '../../../../core/services/firestore_service.dart';
 
 @JS('window.print')
 external void _windowPrint();
 
 class InvoicePreviewPage extends StatefulWidget {
-  final int invoiceId;
+  final String invoiceId;
   const InvoicePreviewPage({super.key, required this.invoiceId});
   @override State<InvoicePreviewPage> createState() => _InvoicePreviewPageState();
 }
 
 class _InvoicePreviewPageState extends State<InvoicePreviewPage> {
+  final _fs = sl<FirestoreService>();
   Map  _inv     = {};
   Map  _company = {};
   bool _loading = true;
@@ -24,13 +25,11 @@ class _InvoicePreviewPageState extends State<InvoicePreviewPage> {
 
   Future<void> _load() async {
     try {
-      final results = await Future.wait([
-        sl<ApiClient>().dio.get('/invoices/${widget.invoiceId}/'),
-        sl<ApiClient>().dio.get('/invoices/company-profile/'),
-      ]);
+      final invDoc     = await _fs.db.collection('invoices').doc(widget.invoiceId).get();
+      final companyDoc = await _fs.db.collection('settings').doc('company_profile').get();
       setState(() {
-        _inv     = results[0].data as Map;
-        _company = results[1].data as Map;
+        _inv     = invDoc.exists     ? _fs.docToMap(invDoc)     : {};
+        _company = companyDoc.exists ? _fs.docToMap(companyDoc) : {};
         _loading = false;
       });
     } catch (_) { setState(() => _loading = false); }
@@ -80,7 +79,7 @@ class _InvoicePreviewPageState extends State<InvoicePreviewPage> {
         ],
       ),
       body: _loading
-        ? const Center(child: CircularProgressIndicator(color: AppTheme.primary))
+        ? const Center(child: CircularProgressIndicator(color: AppTheme.accent))
         : SingleChildScrollView(
             padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 16),
             child: Center(
@@ -112,14 +111,7 @@ class _InvoicePreviewPageState extends State<InvoicePreviewPage> {
     return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
       // Logo / company mark
       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Container(
-          width: 56, height: 56,
-          decoration: BoxDecoration(
-            color: AppTheme.primary,
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: const Icon(Icons.local_shipping, color: Colors.white, size: 30),
-        ),
+        Image.asset('assets/logos/fleetara_logo.png', width: 56, height: 56),
         const SizedBox(height: 8),
         Text(_company['name'] ?? 'Fleet Company',
           style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600,

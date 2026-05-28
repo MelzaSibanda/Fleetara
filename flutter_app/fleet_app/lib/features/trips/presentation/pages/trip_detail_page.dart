@@ -153,7 +153,7 @@ class _TripDetailPageState extends State<TripDetailPage> {
         ],
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: AppTheme.primary))
+          ? const Center(child: CircularProgressIndicator(color: AppTheme.accent))
           : _trip == null
             ? const Center(child: Text('Trip not found'))
             : SingleChildScrollView(
@@ -249,7 +249,7 @@ class _TripDetailPageState extends State<TripDetailPage> {
                       const SizedBox(height: 24),
 
                       if (_updating)
-                        const Center(child: CircularProgressIndicator(color: AppTheme.primary))
+                        const Center(child: CircularProgressIndicator(color: AppTheme.accent))
                       else
                         _buildActions(),
                     ]),

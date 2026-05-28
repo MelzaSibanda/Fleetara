@@ -80,7 +80,7 @@ class _LiveMapPageState extends State<LiveMapPage> {
         ),
       ],
       child: _loading
-        ? const Center(child: CircularProgressIndicator(color: AppTheme.primary, strokeWidth: 2))
+        ? const Center(child: CircularProgressIndicator(color: AppTheme.accent, strokeWidth: 2))
         : ListView(padding: const EdgeInsets.all(16), children: [
             // Map card
             Container(

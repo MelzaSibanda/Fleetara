@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/service_locator.dart';
 import '../../../../core/services/firestore_service.dart';
+import '../../../../core/utils/responsive.dart';
 import '../../../dashboard/presentation/widgets/app_shell.dart';
 
 class ServicesPage extends StatefulWidget {
@@ -109,7 +110,7 @@ class _ServicesPageState extends State<ServicesPage> {
         ),
         Expanded(
           child: _loading
-            ? const Center(child: CircularProgressIndicator(color: AppTheme.primary))
+            ? const Center(child: CircularProgressIndicator(color: AppTheme.accent))
             : _services.isEmpty
               ? EmptyState(
                   icon: Icons.build_outlined,
@@ -121,20 +122,16 @@ class _ServicesPageState extends State<ServicesPage> {
                     child: const Text('Log Service'),
                   ),
                 )
-              : RefreshIndicator(
-                  color: AppTheme.primary,
+              : RListBody(
+                  twoColumn: true,
                   onRefresh: _load,
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: _services.length,
-                    itemBuilder: (_, i) => _ServiceCard(
-                      service: Map<String, dynamic>.from(_services[i]),
-                      statusColor: _statusColor,
-                      statusIcon:  _statusIcon,
-                      statusLabel: _statusLabel,
-                      typeLabel:   _typeLabel,
-                    ),
-                  ),
+                  cards: _services.map((s) => _ServiceCard(
+                    service:     Map<String, dynamic>.from(s),
+                    statusColor: _statusColor,
+                    statusIcon:  _statusIcon,
+                    statusLabel: _statusLabel,
+                    typeLabel:   _typeLabel,
+                  )).toList(),
                 ),
         ),
       ]),

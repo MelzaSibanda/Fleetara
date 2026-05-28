@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/utils/responsive.dart';
 import '../../../../core/utils/service_locator.dart';
 import '../bloc/inspection_bloc.dart';
 import '../bloc/inspection_event.dart';
 import '../bloc/inspection_state.dart';
 import '../../data/models/daily_check_model.dart';
 import '../../../dashboard/presentation/widgets/app_shell.dart';
-import '../../../../../core/utils/responsive.dart';
 
 class DailyCheckHistoryPage extends StatelessWidget {
   const DailyCheckHistoryPage({super.key});
@@ -34,7 +34,7 @@ class DailyCheckHistoryPage extends StatelessWidget {
         child: BlocBuilder<InspectionBloc, InspectionState>(
           builder: (context, state) {
             if (state is InspectionLoading) {
-              return const Center(child: CircularProgressIndicator(color: AppTheme.primary, strokeWidth: 2));
+              return const Center(child: CircularProgressIndicator(color: AppTheme.accent, strokeWidth: 2));
             }
             if (state is InspectionHistoryLoaded) {
               if (state.checks.isEmpty) {
@@ -49,16 +49,12 @@ class DailyCheckHistoryPage extends StatelessWidget {
                   ),
                 );
               }
-              return RefreshIndicator(
-                color: AppTheme.primary,
+              return RListBody(
+                twoColumn: true,
                 onRefresh: () async {
                   context.read<InspectionBloc>().add(InspectionHistoryRequested());
                 },
-                child: ListView.builder(
-                  padding: Responsive.pagePadding(context),
-                  itemCount: state.checks.length,
-                  itemBuilder: (_, i) => _CheckCard(check: state.checks[i]),
-                ),
+                cards: state.checks.map((c) => _CheckCard(check: c)).toList(),
               );
             }
             if (state is InspectionError) {

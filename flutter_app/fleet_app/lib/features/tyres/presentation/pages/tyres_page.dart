@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/service_locator.dart';
 import '../../../../core/services/firestore_service.dart';
+import '../../../../core/utils/responsive.dart';
 import '../../../dashboard/presentation/widgets/app_shell.dart';
 import 'tyre_form_page.dart';
 
@@ -133,18 +134,14 @@ class _TyresPageState extends State<TyresPage> {
                     child: const Text('Add Tyre'),
                   ),
                 )
-              : RefreshIndicator(
-                  color: AppTheme.primary,
+              : RListBody(
+                  twoColumn: true,
                   onRefresh: _load,
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: _tyres.length,
-                    itemBuilder: (_, i) => _TyreCard(
-                      tyre:     _tyres[i],
-                      onEdit:   () => _openForm(context, tyre: _tyres[i]),
-                      onDelete: () => _deleteTyre(_tyres[i]),
-                    ),
-                  ),
+                  cards: _tyres.map((t) => _TyreCard(
+                    tyre:     t,
+                    onEdit:   () => _openForm(context, tyre: t),
+                    onDelete: () => _deleteTyre(t),
+                  )).toList(),
                 ),
         ),
       ]),
