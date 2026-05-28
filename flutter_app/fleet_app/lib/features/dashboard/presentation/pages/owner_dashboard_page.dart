@@ -4,25 +4,160 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/responsive.dart';
+import '../../../../core/utils/service_locator.dart';
+import '../../../../core/services/firestore_service.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../auth/presentation/bloc/auth_state.dart';
 import '../widgets/app_shell.dart';
 import '../widgets/stat_card.dart';
 import '../widgets/alert_card.dart';
 
-class OwnerDashboardPage extends StatelessWidget {
+// ── Data snapshot ─────────────────────────────────────────────────────────────
+
+class _Stats {
+  final int    activeTrips;
+  final int    totalVehicles;
+  final int    availableVehicles;
+  final int    onTripVehicles;
+  final int    maintenanceVehicles;
+  final double totalRevenue;
+  final double revenueMtd;
+  final double totalExpenses;
+  final double outstanding;
+  final int    openAlerts;
+  final List<Map<String, dynamic>> alertItems;
+
+  const _Stats({
+    required this.activeTrips,
+    required this.totalVehicles,
+    required this.availableVehicles,
+    required this.onTripVehicles,
+    required this.maintenanceVehicles,
+    required this.totalRevenue,
+    required this.revenueMtd,
+    required this.totalExpenses,
+    required this.outstanding,
+    required this.openAlerts,
+    required this.alertItems,
+  });
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
+
+class OwnerDashboardPage extends StatefulWidget {
   const OwnerDashboardPage({super.key});
+  @override State<OwnerDashboardPage> createState() => _OwnerDashboardPageState();
+}
+
+class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
+  _Stats? _stats;
+  bool    _loading = true;
+  final   _fs = sl<FirestoreService>();
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    try {
+      final now  = DateTime.now();
+      final mPfx = '${now.year}-${now.month.toString().padLeft(2, '0')}';
+
+      final results = await Future.wait([
+        _fs.db.collection('trips')
+            .where('status', isEqualTo: 'in_progress').get(), // 0 active trips
+        _fs.db.collection('vehicles').get(),                  // 1 all vehicles
+        _fs.db.collection('invoices').get(),                  // 2 all invoices
+        _fs.db.collection('fuel_entries').get(),              // 3 all fuel entries
+        _fs.db.collection('repairs').get(),                   // 4 all repairs
+      ]);
+
+      // ── Trips ──────────────────────────────────────────────────────────────
+      final activeTripDocs = results[0].docs;
+      final activeTrips    = activeTripDocs.length;
+      final onTripIds = activeTripDocs
+          .map((d) => (d.data()['horse_id'] ?? '').toString())
+          .where((id) => id.isNotEmpty)
+          .toSet();
+
+      // ── Vehicles ───────────────────────────────────────────────────────────
+      final vehicles      = _fs.docsToList(results[1]);
+      final totalVehicles = vehicles.length;
+      final mntCount      = vehicles.where((v) => v['status'] == 'maintenance').length;
+      final tripCount     = math.min(onTripIds.length, totalVehicles - mntCount).clamp(0, totalVehicles);
+      final availCount    = (totalVehicles - mntCount - tripCount).clamp(0, totalVehicles);
+
+      // ── Invoices ───────────────────────────────────────────────────────────
+      final invoices = _fs.docsToList(results[2]);
+      double totalRev = 0, revMtd = 0, outstanding = 0;
+      for (final inv in invoices) {
+        final sub    = (inv['subtotal']    as num?)?.toDouble() ?? 0;
+        final tax    = (inv['tax_percent'] as num?)?.toDouble() ?? 0;
+        final total  = sub * (1 + tax / 100);
+        final status = inv['status']?.toString() ?? '';
+        final date   = inv['issue_date']?.toString() ?? '';
+        if (status == 'paid') {
+          totalRev += total;
+          if (date.startsWith(mPfx)) revMtd += total;
+        } else if (status == 'pending' || status == 'sent' || status == 'overdue') {
+          outstanding += total;
+        }
+      }
+
+      // ── Expenses ───────────────────────────────────────────────────────────
+      double fuelExp = 0;
+      for (final e in _fs.docsToList(results[3])) {
+        fuelExp += (e['cost'] as num?)?.toDouble() ?? 0;
+      }
+
+      double repairExp = 0;
+      final allRepairs = _fs.docsToList(results[4]);
+      for (final r in allRepairs) {
+        repairExp += (r['repair_cost'] as num?)?.toDouble() ?? 0;
+      }
+
+      // ── Critical open alerts ───────────────────────────────────────────────
+      final criticals = allRepairs.where((r) =>
+          r['priority'] == 'critical' && r['status'] != 'resolved').toList();
+
+      setState(() {
+        _stats = _Stats(
+          activeTrips:         activeTrips,
+          totalVehicles:       totalVehicles,
+          availableVehicles:   availCount,
+          onTripVehicles:      tripCount,
+          maintenanceVehicles: mntCount,
+          totalRevenue:        totalRev,
+          revenueMtd:          revMtd,
+          totalExpenses:       fuelExp + repairExp,
+          outstanding:         outstanding,
+          openAlerts:          criticals.length,
+          alertItems:          criticals.take(5).toList(),
+        );
+        _loading = false;
+      });
+    } catch (_) {
+      setState(() => _loading = false);
+    }
+  }
+
+  // R 12,400 / R 1.2k / R 1.4M
+  String _fmt(double v) {
+    if (v >= 1000000) return 'R ${(v / 1000000).toStringAsFixed(1)}M';
+    if (v >= 1000)    return 'R ${(v / 1000).toStringAsFixed(1)}k';
+    return 'R ${v.toStringAsFixed(0)}';
+  }
 
   @override
   Widget build(BuildContext context) {
     final authState = context.read<AuthBloc>().state;
     if (authState is! AuthAuthenticated) return const SizedBox.shrink();
-    final user    = authState.user;
-    final now     = DateTime.now();
-    final hour    = now.hour;
-    final greeting = hour < 12 ? 'Good morning'
-        : hour < 17  ? 'Good afternoon' : 'Good evening';
+    final user     = authState.user;
+    final now      = DateTime.now();
+    final greeting = now.hour < 12 ? 'Good morning'
+        : now.hour < 17 ? 'Good afternoon' : 'Good evening';
     final dateStr  = '${_weekday(now.weekday)}, ${_month(now.month)} ${now.day}';
+    final s        = _stats;
 
     return AppShell(
       title: 'Dashboard',
@@ -43,7 +178,7 @@ class OwnerDashboardPage extends StatelessWidget {
 
         return RefreshIndicator(
           color: AppTheme.accent,
-          onRefresh: () async {},
+          onRefresh: _load,
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             child: Center(
@@ -54,7 +189,7 @@ class OwnerDashboardPage extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // ── Greeting ────────────────────────────────────────
+                      // ── Greeting ─────────────────────────────────────────
                       Row(children: [
                         Expanded(child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -66,20 +201,23 @@ class OwnerDashboardPage extends StatelessWidget {
                                 color: AppTheme.textPrimary)),
                             const SizedBox(height: 4),
                             Wrap(spacing: 8, children: [
-                              Text(dateStr,
-                                style: const TextStyle(
-                                  fontSize: 12, color: AppTheme.textMuted)),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 9, vertical: 3),
-                                decoration: BoxDecoration(
-                                  color: AppTheme.emerald.withValues(alpha: 0.12),
-                                  borderRadius: BorderRadius.circular(20)),
-                                child: const Text('Fleet operational',
-                                  style: TextStyle(fontSize: 10,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppTheme.emerald)),
-                              ),
+                              Text(dateStr, style: const TextStyle(
+                                fontSize: 12, color: AppTheme.textMuted)),
+                              if (_loading)
+                                _StatusBadge(
+                                  label: 'Loading…',
+                                  color: AppTheme.textMuted,
+                                  bg:    AppTheme.border)
+                              else
+                                _StatusBadge(
+                                  label: (s?.openAlerts ?? 0) > 0
+                                      ? '${s!.openAlerts} critical alert${s.openAlerts > 1 ? 's' : ''}'
+                                      : 'Fleet operational',
+                                  color: (s?.openAlerts ?? 0) > 0
+                                      ? AppTheme.amber : AppTheme.emerald,
+                                  bg:   ((s?.openAlerts ?? 0) > 0
+                                      ? AppTheme.amber : AppTheme.emerald)
+                                      .withValues(alpha: 0.12)),
                             ]),
                           ],
                         )),
@@ -94,54 +232,79 @@ class OwnerDashboardPage extends StatelessWidget {
                         crossAxisSpacing: 12,
                         mainAxisSpacing: 12,
                         childAspectRatio: isMobile ? 1.45 : 1.25,
-                        children: const [
+                        children: [
                           StatCard(
-                            label: 'Active trips',
-                            value: '—',
-                            icon:  Icons.route,
-                            color: AppTheme.accent,
-                            trend: 'On road',
-                            sparkValues: [0.3, 0.5, 0.4, 0.7, 0.5, 0.8, 1.0]),
+                            label:       'Active trips',
+                            value:       _loading ? '…' : '${s?.activeTrips ?? 0}',
+                            icon:        Icons.route,
+                            color:       AppTheme.accent,
+                            trend:       'On road',
+                            sparkValues: const [0.3, 0.5, 0.4, 0.7, 0.5, 0.8, 1.0]),
                           StatCard(
-                            label: 'Fleet vehicles',
-                            value: '—',
-                            icon:  Icons.local_shipping,
-                            color: AppTheme.primary,
-                            trend: 'Total',
-                            sparkValues: [0.6, 0.5, 0.7, 0.6, 0.8, 0.7, 1.0]),
+                            label:       'Fleet vehicles',
+                            value:       _loading ? '…' : '${s?.totalVehicles ?? 0}',
+                            icon:        Icons.local_shipping,
+                            color:       AppTheme.primary,
+                            trend:       'Total',
+                            sparkValues: const [0.6, 0.5, 0.7, 0.6, 0.8, 0.7, 1.0]),
                           StatCard(
-                            label: 'Revenue (MTD)',
-                            value: 'R —',
-                            icon:  Icons.attach_money,
-                            color: AppTheme.emerald,
-                            trend: 'This month',
-                            sparkValues: [0.4, 0.6, 0.5, 0.7, 0.6, 0.9, 1.0]),
+                            label:       'Revenue (MTD)',
+                            value:       _loading ? '…' : _fmt(s?.revenueMtd ?? 0),
+                            icon:        Icons.attach_money,
+                            color:       AppTheme.emerald,
+                            trend:       'This month',
+                            sparkValues: const [0.4, 0.6, 0.5, 0.7, 0.6, 0.9, 1.0]),
                           StatCard(
-                            label: 'Open alerts',
-                            value: '—',
-                            icon:  Icons.warning_amber_rounded,
-                            color: AppTheme.amber,
-                            trend: 'Needs review',
-                            sparkValues: [0.8, 0.6, 0.9, 0.5, 0.7, 0.4, 0.2]),
+                            label:       'Open alerts',
+                            value:       _loading ? '…' : '${s?.openAlerts ?? 0}',
+                            icon:        Icons.warning_amber_rounded,
+                            color:       (s?.openAlerts ?? 0) > 0
+                                            ? AppTheme.rose : AppTheme.amber,
+                            trend:       'Critical',
+                            sparkValues: const [0.8, 0.6, 0.9, 0.5, 0.7, 0.4, 0.2]),
                         ],
                       ),
                       const SizedBox(height: 20),
 
-                      // ── Finance summary card ─────────────────────────────
-                      _FinanceSummaryCard(isMobile: isMobile),
+                      // ── Finance summary ───────────────────────────────────
+                      _FinanceSummaryCard(
+                        isMobile:    isMobile,
+                        loading:     _loading,
+                        revenue:     _fmt(s?.totalRevenue  ?? 0),
+                        expenses:    _fmt(s?.totalExpenses ?? 0),
+                        outstanding: _fmt(s?.outstanding   ?? 0),
+                      ),
                       const SizedBox(height: 16),
 
-                      // ── Fleet health + Alerts ───────────────────────────
+                      // ── Fleet health + Alerts ─────────────────────────────
                       isMobile
                         ? Column(children: [
-                            _FleetHealthCard(),
+                            _FleetHealthCard(
+                              loading:     _loading,
+                              total:       s?.totalVehicles       ?? 0,
+                              available:   s?.availableVehicles   ?? 0,
+                              onTrip:      s?.onTripVehicles      ?? 0,
+                              maintenance: s?.maintenanceVehicles ?? 0,
+                            ),
                             const SizedBox(height: 14),
-                            _AlertsCard(),
+                            _AlertsCard(
+                              loading:    _loading,
+                              alertItems: s?.alertItems ?? [],
+                            ),
                           ])
                         : Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                            Expanded(flex: 5, child: _FleetHealthCard()),
+                            Expanded(flex: 5, child: _FleetHealthCard(
+                              loading:     _loading,
+                              total:       s?.totalVehicles       ?? 0,
+                              available:   s?.availableVehicles   ?? 0,
+                              onTrip:      s?.onTripVehicles      ?? 0,
+                              maintenance: s?.maintenanceVehicles ?? 0,
+                            )),
                             const SizedBox(width: 14),
-                            Expanded(flex: 7, child: _AlertsCard()),
+                            Expanded(flex: 7, child: _AlertsCard(
+                              loading:    _loading,
+                              alertItems: s?.alertItems ?? [],
+                            )),
                           ]),
 
                       const SizedBox(height: 16),
@@ -156,18 +319,40 @@ class OwnerDashboardPage extends StatelessWidget {
     );
   }
 
-  String _weekday(int d) =>
-      ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][d - 1];
-  String _month(int m) =>
-      ['Jan','Feb','Mar','Apr','May','Jun',
-       'Jul','Aug','Sep','Oct','Nov','Dec'][m - 1];
+  String _weekday(int d) => ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][d - 1];
+  String _month(int m)   =>
+      ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][m - 1];
 }
 
-// ── Finance Summary ──────────────────────────────────────────────────────────
+// ── Status badge ──────────────────────────────────────────────────────────────
+
+class _StatusBadge extends StatelessWidget {
+  final String label;
+  final Color  color, bg;
+  const _StatusBadge({required this.label, required this.color, required this.bg});
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+    decoration: BoxDecoration(
+      color: bg, borderRadius: BorderRadius.circular(20)),
+    child: Text(label,
+      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: color)),
+  );
+}
+
+// ── Finance Summary ───────────────────────────────────────────────────────────
 
 class _FinanceSummaryCard extends StatelessWidget {
-  final bool isMobile;
-  const _FinanceSummaryCard({required this.isMobile});
+  final bool   isMobile, loading;
+  final String revenue, expenses, outstanding;
+  const _FinanceSummaryCard({
+    required this.isMobile,
+    required this.loading,
+    required this.revenue,
+    required this.expenses,
+    required this.outstanding,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -184,6 +369,7 @@ class _FinanceSummaryCard extends StatelessWidget {
       ),
       padding: EdgeInsets.all(isMobile ? 16 : 22),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        // Header
         Row(children: [
           Container(
             padding: const EdgeInsets.all(6),
@@ -215,26 +401,28 @@ class _FinanceSummaryCard extends StatelessWidget {
           ),
         ]),
         SizedBox(height: isMobile ? 14 : 20),
-        // Finance stats row
+
+        // Stats
         isMobile
-          ? Wrap(spacing: 0, runSpacing: 12, children: const [
-              _FinanceStat(label: 'Revenue',     value: 'R —', color: AppTheme.emerald),
-              _FinanceStat(label: 'Expenses',    value: 'R —', color: AppTheme.rose),
-              _FinanceStat(label: 'Outstanding', value: 'R —', color: AppTheme.amber),
+          ? Wrap(spacing: 0, runSpacing: 12, children: [
+              _FinanceStat(label: 'Total Revenue',  value: loading ? '…' : revenue,     color: AppTheme.emerald),
+              _FinanceStat(label: 'Expenses',       value: loading ? '…' : expenses,    color: AppTheme.rose),
+              _FinanceStat(label: 'Outstanding',    value: loading ? '…' : outstanding, color: AppTheme.amber),
             ])
-          : Row(children: const [
-              Expanded(child: _FinanceStat(label: 'Revenue',     value: 'R —', color: AppTheme.emerald)),
-              Expanded(child: _FinanceStat(label: 'Expenses',    value: 'R —', color: AppTheme.rose)),
-              Expanded(child: _FinanceStat(label: 'Outstanding', value: 'R —', color: AppTheme.amber)),
+          : Row(children: [
+              Expanded(child: _FinanceStat(label: 'Total Revenue',  value: loading ? '…' : revenue,     color: AppTheme.emerald)),
+              Expanded(child: _FinanceStat(label: 'Expenses',       value: loading ? '…' : expenses,    color: AppTheme.rose)),
+              Expanded(child: _FinanceStat(label: 'Outstanding',    value: loading ? '…' : outstanding, color: AppTheme.amber)),
             ]),
         SizedBox(height: isMobile ? 16 : 20),
-        // Quick finance actions
+
+        // Quick actions
         Wrap(spacing: 8, runSpacing: 8, children: [
           _FinanceChip(label: 'New Invoice', icon: Icons.add,
             onTap: () => context.go('/invoices/add')),
-          _FinanceChip(label: 'Report', icon: Icons.bar_chart_outlined,
+          _FinanceChip(label: 'Report',     icon: Icons.bar_chart_outlined,
             onTap: () => context.go('/invoices/summary')),
-          _FinanceChip(label: 'Statement', icon: Icons.description_outlined,
+          _FinanceChip(label: 'Statement',  icon: Icons.description_outlined,
             onTap: () => context.go('/invoices/statement')),
         ]),
       ]),
@@ -289,45 +477,85 @@ class _FinanceChip extends StatelessWidget {
   );
 }
 
-// ── Fleet Health ─────────────────────────────────────────────────────────────
+// ── Fleet Health ──────────────────────────────────────────────────────────────
 
 class _FleetHealthCard extends StatelessWidget {
+  final bool loading;
+  final int  total, available, onTrip, maintenance;
+  const _FleetHealthCard({
+    required this.loading,
+    required this.total,
+    required this.available,
+    required this.onTrip,
+    required this.maintenance,
+  });
+
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(18),
-    decoration: BoxDecoration(
-      color: AppTheme.surface,
-      borderRadius: BorderRadius.circular(14),
-      border: Border.all(color: AppTheme.border, width: 0.5),
-      boxShadow: const [
-        BoxShadow(color: Color(0x081E3A72), blurRadius: 16, offset: Offset(0, 4)),
-      ],
-    ),
-    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(children: [
-        Container(
-          width: 32, height: 32,
-          decoration: BoxDecoration(
-            color: AppTheme.accent.withValues(alpha: 0.10),
-            borderRadius: BorderRadius.circular(8)),
-          child: const Icon(Icons.local_shipping_outlined,
-            color: AppTheme.accent, size: 16),
+  Widget build(BuildContext context) {
+    final double a = total > 0 ? available   / total : 0;
+    final double t = total > 0 ? onTrip      / total : 0;
+    final double m = total > 0 ? maintenance / total : 0;
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppTheme.border, width: 0.5),
+        boxShadow: const [
+          BoxShadow(color: Color(0x081E3A72), blurRadius: 16, offset: Offset(0, 4)),
+        ],
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Container(
+            width: 32, height: 32,
+            decoration: BoxDecoration(
+              color: AppTheme.accent.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(8)),
+            child: const Icon(Icons.local_shipping_outlined,
+              color: AppTheme.accent, size: 16),
+          ),
+          const SizedBox(width: 10),
+          const Text('Fleet health',
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700,
+              color: AppTheme.textPrimary)),
+        ]),
+        const SizedBox(height: 20),
+        Center(
+          child: SizedBox(
+            width: 120, height: 120,
+            child: CustomPaint(
+              painter: _DonutPainter(
+                segments: loading || total == 0
+                    ? [_Segment(AppTheme.border, 1.0)]
+                    : [
+                        if (a > 0) _Segment(AppTheme.accent,  a),
+                        if (t > 0) _Segment(AppTheme.emerald, t),
+                        if (m > 0) _Segment(AppTheme.amber,   m),
+                      ]),
+              child: Center(child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(loading ? '…' : '$total',
+                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700,
+                      color: AppTheme.textPrimary)),
+                  const Text('Total', style: TextStyle(
+                    fontSize: 10, color: AppTheme.textMuted)),
+                ],
+              )),
+            ),
+          ),
         ),
-        const SizedBox(width: 10),
-        const Text('Fleet health',
-          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700,
-            color: AppTheme.textPrimary)),
+        const SizedBox(height: 20),
+        _LegendRow(color: AppTheme.accent,  label: 'Available',   value: loading ? '…' : '$available'),
+        const SizedBox(height: 10),
+        _LegendRow(color: AppTheme.emerald, label: 'On trip',     value: loading ? '…' : '$onTrip'),
+        const SizedBox(height: 10),
+        _LegendRow(color: AppTheme.amber,   label: 'Maintenance', value: loading ? '…' : '$maintenance'),
       ]),
-      const SizedBox(height: 20),
-      Center(child: SizedBox(width: 120, height: 120, child: _DonutChart())),
-      const SizedBox(height: 20),
-      _LegendRow(color: AppTheme.accent,  label: 'Active',      value: '—'),
-      const SizedBox(height: 10),
-      _LegendRow(color: AppTheme.emerald, label: 'On trip',     value: '—'),
-      const SizedBox(height: 10),
-      _LegendRow(color: AppTheme.amber,   label: 'Maintenance', value: '—'),
-    ]),
-  );
+    );
+  }
 }
 
 class _LegendRow extends StatelessWidget {
@@ -348,27 +576,8 @@ class _LegendRow extends StatelessWidget {
   ]);
 }
 
-class _DonutChart extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) => CustomPaint(
-    painter: _DonutPainter(segments: [
-      _Segment(AppTheme.accent,  0.45),
-      _Segment(AppTheme.emerald, 0.35),
-      _Segment(AppTheme.amber,   0.20),
-    ]),
-    child: const Center(child: Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Text('—', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700,
-          color: AppTheme.textPrimary)),
-        Text('Total', style: TextStyle(fontSize: 10, color: AppTheme.textMuted)),
-      ],
-    )),
-  );
-}
-
 class _Segment {
-  final Color color;
+  final Color  color;
   final double value;
   const _Segment(this.color, this.value);
 }
@@ -383,7 +592,7 @@ class _DonutPainter extends CustomPainter {
     final cy = size.height / 2;
     final r  = math.min(cx, cy) - 6;
     const strokeW = 14.0;
-    const gap     = 0.04;
+    const gap     = 0.03;
     final paint   = Paint()
       ..style       = PaintingStyle.stroke
       ..strokeWidth = strokeW
@@ -395,9 +604,12 @@ class _DonutPainter extends CustomPainter {
       ..strokeWidth = strokeW
       ..color = AppTheme.border);
 
+    if (segments.isEmpty) return;
+
     double start = -math.pi / 2;
     for (final seg in segments) {
       final sweep = (seg.value * 2 * math.pi) - gap;
+      if (sweep <= 0) continue;
       paint.color = seg.color;
       canvas.drawArc(
         Rect.fromCircle(center: Offset(cx, cy), radius: r),
@@ -407,12 +619,26 @@ class _DonutPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_DonutPainter old) => false;
+  bool shouldRepaint(_DonutPainter old) =>
+      old.segments.length != segments.length;
 }
 
-// ── Alerts card ───────────────────────────────────────────────────────────────
+// ── Alerts ────────────────────────────────────────────────────────────────────
 
 class _AlertsCard extends StatelessWidget {
+  final bool   loading;
+  final List<Map<String, dynamic>> alertItems;
+  const _AlertsCard({required this.loading, required this.alertItems});
+
+  String _alertMessage(Map<String, dynamic> r) {
+    final parts = <String>[];
+    final vehicle = (r['vehicle_name'] ?? r['vehicle_reg'] ?? '').toString();
+    final reporter = (r['reported_by_name'] ?? '').toString();
+    if (vehicle.isNotEmpty)  parts.add(vehicle);
+    if (reporter.isNotEmpty) parts.add('Reported by $reporter');
+    return parts.isNotEmpty ? parts.join(' · ') : 'Critical — needs immediate attention';
+  }
+
   @override
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.all(18),
@@ -438,25 +664,44 @@ class _AlertsCard extends StatelessWidget {
         const Text('Alerts & Reminders',
           style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700,
             color: AppTheme.textPrimary)),
+        const Spacer(),
+        if (!loading && alertItems.isNotEmpty)
+          GestureDetector(
+            onTap: () => context.go('/repairs'),
+            child: const Text('View all',
+              style: TextStyle(fontSize: 12, color: AppTheme.accent,
+                fontWeight: FontWeight.w500)),
+          ),
       ]),
       const SizedBox(height: 14),
-      const AlertCard(
-        title:   'No active alerts',
-        message: 'Vehicle documents and service reminders will appear here.',
-        type:    AlertType.info),
+
+      if (loading)
+        const Center(child: Padding(
+          padding: EdgeInsets.symmetric(vertical: 12),
+          child: CircularProgressIndicator(
+            color: AppTheme.accent, strokeWidth: 2)))
+      else if (alertItems.isEmpty)
+        const AlertCard(
+          title:   'No active alerts',
+          message: 'Vehicle documents and service reminders will appear here.',
+          type:    AlertType.info)
+      else
+        ...alertItems.map((r) => Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: AlertCard(
+            title:   r['title']?.toString() ?? 'Critical issue',
+            message: _alertMessage(r),
+            type:    AlertType.danger))),
+
       const SizedBox(height: 10),
-      // Quick links row
       Row(children: [
-        _AlertAction(
-          label: 'Vehicles', icon: Icons.local_shipping_outlined,
+        _AlertAction(label: 'Vehicles', icon: Icons.local_shipping_outlined,
           onTap: () => context.go('/vehicles')),
         const SizedBox(width: 8),
-        _AlertAction(
-          label: 'Repairs', icon: Icons.handyman_outlined,
+        _AlertAction(label: 'Repairs',  icon: Icons.handyman_outlined,
           onTap: () => context.go('/repairs')),
         const SizedBox(width: 8),
-        _AlertAction(
-          label: 'Invoices', icon: Icons.receipt_long_outlined,
+        _AlertAction(label: 'Invoices', icon: Icons.receipt_long_outlined,
           onTap: () => context.go('/invoices')),
       ]),
     ]),
