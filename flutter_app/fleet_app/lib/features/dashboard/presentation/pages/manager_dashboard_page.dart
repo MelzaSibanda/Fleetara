@@ -42,8 +42,7 @@ class _ManagerDashboardPageState extends State<ManagerDashboardPage> {
       final checkList   = _fs.docsToList(results[2]);
       final repairList  = _fs.docsToList(results[3]);
 
-      final failedChecks = checkList
-          .where((c) => c['overall_status'] == 'critical').length;
+      final failedChecks = checkList.where((c) => c['overall_status'] == 'critical').length;
       final openRepairs  = repairList.length;
 
       final alerts = <Map<String, dynamic>>[];
@@ -79,13 +78,14 @@ class _ManagerDashboardPageState extends State<ManagerDashboardPage> {
   Widget build(BuildContext context) {
     final authState = context.read<AuthBloc>().state;
     if (authState is! AuthAuthenticated) return const SizedBox.shrink();
-    final user = authState.user;
-    final hour = DateTime.now().hour;
+    final user    = authState.user;
+    final hour    = DateTime.now().hour;
     final greeting = hour < 12 ? 'Good morning'
       : hour < 17 ? 'Good afternoon' : 'Good evening';
+    final isMobile = Responsive.isMobile(context);
 
     return AppShell(
-      title: 'Fleetara',
+      title: 'Dashboard',
       child: RefreshIndicator(
         color: AppTheme.accent,
         onRefresh: _load,
@@ -96,128 +96,142 @@ class _ManagerDashboardPageState extends State<ManagerDashboardPage> {
               constraints: const BoxConstraints(maxWidth: 1100),
               child: Padding(
                 padding: Responsive.pagePadding(context),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // ── Header ────────────────────────────────────────────
-                    Row(children: [
-                      Expanded(child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('$greeting, ${user.firstName}',
-                            style: const TextStyle(fontSize: 20,
-                              fontWeight: FontWeight.w700,
-                              color: AppTheme.textPrimary)),
-                          const SizedBox(height: 2),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  // ── Header ────────────────────────────────────────────────
+                  Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Expanded(child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('$greeting, ${user.firstName}',
+                          style: TextStyle(
+                            fontSize: isMobile ? 18 : 22,
+                            fontWeight: FontWeight.w700,
+                            color: AppTheme.textPrimary)),
+                        const SizedBox(height: 3),
+                        Row(children: [
+                          const Icon(Icons.manage_accounts_outlined,
+                            size: 13, color: AppTheme.textMuted),
+                          const SizedBox(width: 5),
                           Text('Fleet Manager  ·  ${_today()}',
-                            style: const TextStyle(
-                              fontSize: 12, color: AppTheme.textMuted)),
-                        ],
-                      )),
-                      ElevatedButton.icon(
-                        onPressed: () => context.go('/trips/add'),
-                        style: ElevatedButton.styleFrom(
-                          minimumSize: const Size(120, 40),
-                          padding: const EdgeInsets.symmetric(horizontal: 16)),
-                        icon: const Icon(Icons.add, size: 16),
-                        label: const Text('New Trip'),
-                      ),
-                    ]),
+                            style: const TextStyle(fontSize: 12, color: AppTheme.textMuted)),
+                        ]),
+                      ],
+                    )),
+                    ElevatedButton.icon(
+                      onPressed: () => context.go('/trips/add'),
+                      style: ElevatedButton.styleFrom(
+                        minimumSize: const Size(120, 40),
+                        padding: const EdgeInsets.symmetric(horizontal: 16)),
+                      icon: const Icon(Icons.add, size: 16),
+                      label: const Text('New Trip'),
+                    ),
+                  ]),
+                  const SizedBox(height: 24),
+
+                  if (_loading)
+                    const Center(child: Padding(
+                      padding: EdgeInsets.all(48),
+                      child: CircularProgressIndicator(color: AppTheme.accent)))
+                  else ...[
+                    // ── KPI cards ─────────────────────────────────────────
+                    GridView.count(
+                      crossAxisCount: Responsive.kpiColumns(context),
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      crossAxisSpacing: 12,
+                      mainAxisSpacing: 12,
+                      childAspectRatio: isMobile ? 1.45 : 1.55,
+                      children: [
+                        StatCard(
+                          label: 'Total Vehicles',
+                          value: '${_stats['vehicles'] ?? 0}',
+                          icon:  Icons.local_shipping_outlined,
+                          color: AppTheme.primary,
+                          trend: 'Fleet',
+                          sparkValues: [0.4, 0.6, 0.5, 0.7, 0.6, 0.8, 0.9]),
+                        StatCard(
+                          label: 'Active Trips',
+                          value: '${_stats['trips'] ?? 0}',
+                          icon:  Icons.route_outlined,
+                          color: AppTheme.emerald,
+                          trend: 'On road',
+                          sparkValues: [0.3, 0.5, 0.4, 0.6, 0.7, 0.8, 1.0]),
+                        StatCard(
+                          label: 'Daily Checks',
+                          value: '${_stats['checks'] ?? 0}',
+                          icon:  Icons.assignment_turned_in_outlined,
+                          color: AppTheme.amber,
+                          trend: 'Today',
+                          sparkValues: [0.5, 0.4, 0.6, 0.5, 0.7, 0.6, 0.8]),
+                        StatCard(
+                          label: 'Open Repairs',
+                          value: '${_stats['repairs'] ?? 0}',
+                          icon:  Icons.handyman_outlined,
+                          color: AppTheme.rose,
+                          trend: 'Pending',
+                          sparkValues: [0.7, 0.5, 0.8, 0.6, 0.5, 0.4, 0.3]),
+                      ],
+                    ),
                     const SizedBox(height: 24),
 
-                    if (_loading)
-                      const Center(child: Padding(
-                        padding: EdgeInsets.all(40),
-                        child: CircularProgressIndicator(color: AppTheme.accent),
-                      ))
-                    else ...[
-                      // ── KPI cards ──────────────────────────────────────
-                      GridView.count(
-                        crossAxisCount: Responsive.kpiColumns(context),
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        crossAxisSpacing: 12,
-                        mainAxisSpacing: 12,
-                        childAspectRatio: Responsive.isMobile(context) ? 1.5 : 1.7,
-                        children: [
-                          StatCard(label: 'Total Vehicles',
-                            value: '${_stats['vehicles'] ?? 0}',
-                            icon: Icons.local_shipping_outlined,
-                            color: AppTheme.primary, trend: '↑ Fleet'),
-                          StatCard(label: 'Active Trips',
-                            value: '${_stats['trips'] ?? 0}',
-                            icon: Icons.route_outlined,
-                            color: AppTheme.emerald, trend: 'On road'),
-                          StatCard(label: 'Daily Checks',
-                            value: '${_stats['checks'] ?? 0}',
-                            icon: Icons.assignment_turned_in_outlined,
-                            color: AppTheme.amber, trend: 'Today'),
-                          StatCard(label: 'Open Repairs',
-                            value: '${_stats['repairs'] ?? 0}',
-                            icon: Icons.handyman_outlined,
-                            color: AppTheme.rose, trend: 'Pending'),
-                        ],
-                      ),
-                      const SizedBox(height: 24),
+                    // ── Quick access ──────────────────────────────────────
+                    _SectionLabel(title: 'Quick access'),
+                    GridView.count(
+                      crossAxisCount: isMobile ? 4 : 8,
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      crossAxisSpacing: 10,
+                      mainAxisSpacing: 10,
+                      childAspectRatio: isMobile ? 0.88 : 1.0,
+                      children: [
+                        _QuickTile(icon: Icons.local_shipping_outlined,
+                          label: 'Vehicles', color: AppTheme.primary,
+                          route: '/vehicles', ctx: context),
+                        _QuickTile(icon: Icons.route_outlined,
+                          label: 'Trips', color: AppTheme.emerald,
+                          route: '/trips', ctx: context),
+                        _QuickTile(icon: Icons.assignment_turned_in_outlined,
+                          label: 'Checks', color: AppTheme.amber,
+                          route: '/daily-checks', ctx: context),
+                        _QuickTile(icon: Icons.local_gas_station_outlined,
+                          label: 'Fuel', color: AppTheme.accent,
+                          route: '/fuel', ctx: context),
+                        _QuickTile(icon: Icons.tire_repair_outlined,
+                          label: 'Tyres', color: AppTheme.darkNavy,
+                          route: '/tyres', ctx: context),
+                        _QuickTile(icon: Icons.build_circle_outlined,
+                          label: 'Services', color: const Color(0xFF7C3AED),
+                          route: '/services', ctx: context),
+                        _QuickTile(icon: Icons.handyman_outlined,
+                          label: 'Repairs', color: AppTheme.rose,
+                          route: '/repairs', ctx: context),
+                        _QuickTile(icon: Icons.location_on_outlined,
+                          label: 'GPS', color: AppTheme.emerald,
+                          route: '/gps/live', ctx: context),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
 
-                      // ── Quick access ────────────────────────────────────
-                      const SectionHeader('Quick access'),
-                      GridView.count(
-                        crossAxisCount: Responsive.value(context,
-                          mobile: 4, tablet: 6, desktop: 8),
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        crossAxisSpacing: 10,
-                        mainAxisSpacing: 10,
-                        childAspectRatio: Responsive.isMobile(context) ? 0.9 : 1.1,
-                        children: [
-                          _QuickTile(icon: Icons.local_shipping_outlined,
-                            label: 'Vehicles', color: AppTheme.primary,
-                            route: '/vehicles', ctx: context),
-                          _QuickTile(icon: Icons.route_outlined,
-                            label: 'Trips', color: AppTheme.emerald,
-                            route: '/trips', ctx: context),
-                          _QuickTile(icon: Icons.assignment_turned_in_outlined,
-                            label: 'Checks', color: AppTheme.amber,
-                            route: '/daily-checks', ctx: context),
-                          _QuickTile(icon: Icons.local_gas_station_outlined,
-                            label: 'Fuel', color: AppTheme.accent,
-                            route: '/fuel', ctx: context),
-                          _QuickTile(icon: Icons.tire_repair_outlined,
-                            label: 'Tyres', color: AppTheme.darkNavy,
-                            route: '/tyres', ctx: context),
-                          _QuickTile(icon: Icons.build_circle_outlined,
-                            label: 'Services', color: AppTheme.amber,
-                            route: '/services', ctx: context),
-                          _QuickTile(icon: Icons.handyman_outlined,
-                            label: 'Repairs', color: AppTheme.rose,
-                            route: '/repairs', ctx: context),
-                          _QuickTile(icon: Icons.location_on_outlined,
-                            label: 'GPS', color: AppTheme.emerald,
-                            route: '/gps/live', ctx: context),
-                        ],
-                      ),
-                      const SizedBox(height: 24),
+                    // ── Alerts ────────────────────────────────────────────
+                    _SectionLabel(title: 'Alerts'),
+                    if (_alerts.isEmpty)
+                      const AlertCard(
+                        title:   'All clear',
+                        message: 'No issues to report. Fleet is running smoothly.',
+                        type:    AlertType.success)
+                    else
+                      ..._alerts.map((a) => Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: AlertCard(
+                          title:   a['title'],
+                          message: a['subtitle'],
+                          type:    a['type'] == 'danger'
+                            ? AlertType.danger : AlertType.warning),
+                      )),
 
-                      // ── Alerts ──────────────────────────────────────────
-                      const SectionHeader('Alerts'),
-                      if (_alerts.isEmpty)
-                        const AlertCard(
-                          title:   'All clear',
-                          message: 'No issues to report. Fleet is running smoothly.',
-                          type:    AlertType.success)
-                      else
-                        ..._alerts.map((a) => Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: AlertCard(
-                            title:   a['title'],
-                            message: a['subtitle'],
-                            type:    a['type'] == 'danger'
-                              ? AlertType.danger : AlertType.warning),
-                        )),
-                    ],
+                    const SizedBox(height: 16),
                   ],
-                ),
+                ]),
               ),
             ),
           ),
@@ -232,6 +246,20 @@ class _ManagerDashboardPageState extends State<ManagerDashboardPage> {
                 'Jul','Aug','Sep','Oct','Nov','Dec'];
     return '${now.day} ${m[now.month - 1]} ${now.year}';
   }
+}
+
+class _SectionLabel extends StatelessWidget {
+  final String title;
+  const _SectionLabel({required this.title});
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 12),
+    child: Text(title,
+      style: const TextStyle(
+        fontSize: 14, fontWeight: FontWeight.w700,
+        color: AppTheme.textPrimary, letterSpacing: 0.1)),
+  );
 }
 
 class _QuickTile extends StatelessWidget {
@@ -254,13 +282,14 @@ class _QuickTile extends StatelessWidget {
         Container(
           width: 38, height: 38,
           decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.12),
+            color: color.withValues(alpha: 0.13),
             borderRadius: BorderRadius.circular(10)),
           child: Icon(icon, color: color, size: 20),
         ),
-        const SizedBox(height: 6),
-        Text(label, style: TextStyle(
-          fontSize: 11, fontWeight: FontWeight.w600, color: color),
+        const SizedBox(height: 7),
+        Text(label,
+          style: TextStyle(
+            fontSize: 11, fontWeight: FontWeight.w600, color: color),
           textAlign: TextAlign.center),
       ]),
     ),

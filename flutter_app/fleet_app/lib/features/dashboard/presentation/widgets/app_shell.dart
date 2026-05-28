@@ -39,18 +39,26 @@ class AppShell extends StatelessWidget {
       backgroundColor: AppTheme.background,
       appBar: AppBar(
         toolbarHeight: 56,
-        title: Row(children: [
-          Image.asset('assets/logos/fleetara_logo.png', width: 28, height: 28),
-          const SizedBox(width: 10),
-          Text(title, style: const TextStyle(
-            fontSize: 14, fontWeight: FontWeight.w600, color: AppTheme.textPrimary)),
-        ]),
+        leadingWidth: isWide ? 0 : 56,
+        leading: isWide ? null : Padding(
+          padding: const EdgeInsets.only(left: 12),
+          child: Image.asset('assets/logos/fleetara_logo.png', width: 28, height: 28),
+        ),
+        title: isWide
+          ? Row(children: [
+              Icon(Icons.grid_view_rounded, size: 18, color: AppTheme.textMuted),
+              const SizedBox(width: 8),
+              Text(title, style: const TextStyle(
+                fontSize: 14, fontWeight: FontWeight.w600, color: AppTheme.textPrimary)),
+            ])
+          : Text(title, style: const TextStyle(
+              fontSize: 14, fontWeight: FontWeight.w600, color: AppTheme.textPrimary)),
         actions: [
           ...?actions,
-          _NotificationBell(),
-          const SizedBox(width: 4),
-          _UserAvatar(initials: initials, user: user),
-          const SizedBox(width: 12),
+          _NotificationBell(count: 2),
+          const SizedBox(width: 6),
+          _UserAvatar(initials: initials, user: user, showName: isWide),
+          const SizedBox(width: 14),
         ],
       ),
       body: isWide
@@ -67,32 +75,32 @@ class AppShell extends StatelessWidget {
   List<_NavItem> _navItemsForRole(String role) {
     if (role == 'driver') {
       return [
-        _NavItem('/dashboard',    Icons.home_outlined,                    'Home'),
-        _NavItem('/trips',        Icons.route_outlined,                   'Trips'),
-        _NavItem('/daily-checks', Icons.assignment_turned_in_outlined,    'Daily Checks'),
-        _NavItem('/fuel',         Icons.local_gas_station_outlined,       'Fuel'),
-        _NavItem('/repairs',      Icons.handyman_outlined,                'Repairs'),
+        _NavItem('/dashboard',    Icons.home_outlined,                 'Home'),
+        _NavItem('/trips',        Icons.route_outlined,                'Trips'),
+        _NavItem('/daily-checks', Icons.assignment_turned_in_outlined, 'Daily Checks'),
+        _NavItem('/fuel',         Icons.local_gas_station_outlined,    'Fuel'),
+        _NavItem('/repairs',      Icons.handyman_outlined,             'Repairs'),
       ];
     }
     if (role == 'fleet_manager') {
       return [
-        _NavItem('/vehicles',     Icons.local_shipping_outlined,          'Vehicles'),
-        _NavItem('/trips',        Icons.route_outlined,                   'Trips'),
-        _NavItem('/daily-checks', Icons.assignment_turned_in_outlined,    'Daily Checks'),
-        _NavItem('/fuel',         Icons.local_gas_station_outlined,       'Fuel'),
-        _NavItem('/tyres',        Icons.tire_repair_outlined,             'Tyres'),
-        _NavItem('/services',     Icons.build_circle_outlined,            'Services'),
-        _NavItem('/repairs',      Icons.handyman_outlined,                'Repairs'),
-        _NavItem('/gps/live',     Icons.location_on_outlined,             'GPS'),
+        _NavItem('/vehicles',     Icons.local_shipping_outlined,       'Vehicles'),
+        _NavItem('/trips',        Icons.route_outlined,                'Trips'),
+        _NavItem('/daily-checks', Icons.assignment_turned_in_outlined, 'Daily Checks'),
+        _NavItem('/fuel',         Icons.local_gas_station_outlined,    'Fuel'),
+        _NavItem('/tyres',        Icons.tire_repair_outlined,          'Tyres'),
+        _NavItem('/services',     Icons.build_circle_outlined,         'Services'),
+        _NavItem('/repairs',      Icons.handyman_outlined,             'Repairs'),
+        _NavItem('/gps/live',     Icons.location_on_outlined,          'GPS'),
       ];
     }
     return [
-      _NavItem('/dashboard', Icons.home_outlined,           'Home'),
-      _NavItem('/vehicles',  Icons.local_shipping_outlined, 'Fleet'),
-      _NavItem('/trips',     Icons.route_outlined,          'Trips'),
+      _NavItem('/dashboard', Icons.home_outlined,              'Home'),
+      _NavItem('/vehicles',  Icons.local_shipping_outlined,    'Fleet'),
+      _NavItem('/trips',     Icons.route_outlined,             'Trips'),
       _NavItem('/fuel',      Icons.local_gas_station_outlined, 'Fuel'),
-      _NavItem('/invoices',  Icons.receipt_long_outlined,   'Finance'),
-      _NavItem('/gps/live',  Icons.location_on_outlined,    'GPS'),
+      _NavItem('/invoices',  Icons.receipt_long_outlined,      'Finance'),
+      _NavItem('/gps/live',  Icons.location_on_outlined,       'GPS'),
     ];
   }
 }
@@ -100,30 +108,40 @@ class AppShell extends StatelessWidget {
 // ── AppBar components ──────────────────────────────────────────────────────
 
 class _NotificationBell extends StatelessWidget {
+  final int count;
+  const _NotificationBell({this.count = 0});
+
   @override
   Widget build(BuildContext context) => Stack(
     children: [
       IconButton(
-        icon: const Icon(Icons.notifications_outlined, size: 21,
-          color: AppTheme.textMuted),
+        icon: const Icon(Icons.notifications_outlined, size: 21, color: AppTheme.textMuted),
         onPressed: () {},
       ),
-      Positioned(
-        right: 11, top: 11,
-        child: Container(
-          width: 7, height: 7,
-          decoration: const BoxDecoration(
-            color: AppTheme.rose, shape: BoxShape.circle),
+      if (count > 0)
+        Positioned(
+          right: 8, top: 8,
+          child: Container(
+            width: 17, height: 17,
+            decoration: const BoxDecoration(
+              color: AppTheme.rose, shape: BoxShape.circle),
+            child: Center(
+              child: Text('$count',
+                style: const TextStyle(
+                  color: Colors.white, fontSize: 9,
+                  fontWeight: FontWeight.w700)),
+            ),
+          ),
         ),
-      ),
     ],
   );
 }
 
 class _UserAvatar extends StatelessWidget {
-  final String initials;
+  final String  initials;
   final dynamic user;
-  const _UserAvatar({required this.initials, required this.user});
+  final bool    showName;
+  const _UserAvatar({required this.initials, required this.user, this.showName = false});
 
   @override
   Widget build(BuildContext context) => PopupMenuButton<String>(
@@ -131,20 +149,26 @@ class _UserAvatar extends StatelessWidget {
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     elevation: 8,
     shadowColor: const Color(0x1A1E3A72),
-    icon: Container(
-      width: 34, height: 34,
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [AppTheme.primary, AppTheme.accent],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+    child: Row(mainAxisSize: MainAxisSize.min, children: [
+      Container(
+        width: 34, height: 34,
+        decoration: BoxDecoration(
+          color: AppTheme.darkNavy,
+          borderRadius: BorderRadius.circular(10),
         ),
-        borderRadius: BorderRadius.circular(10),
+        child: Center(child: Text(initials,
+          style: const TextStyle(color: Colors.white, fontSize: 13,
+            fontWeight: FontWeight.w700))),
       ),
-      child: Center(child: Text(initials,
-        style: const TextStyle(color: Colors.white, fontSize: 13,
-          fontWeight: FontWeight.w700))),
-    ),
+      if (showName) ...[
+        const SizedBox(width: 8),
+        Text(user.firstName,
+          style: const TextStyle(
+            fontSize: 13, fontWeight: FontWeight.w500, color: AppTheme.textPrimary)),
+        const SizedBox(width: 4),
+        const Icon(Icons.keyboard_arrow_down, size: 16, color: AppTheme.textMuted),
+      ],
+    ]),
     itemBuilder: (_) => [
       PopupMenuItem(
         enabled: false,
@@ -211,33 +235,74 @@ class _Sidebar extends StatelessWidget {
     final location = GoRouterState.of(context).matchedLocation;
 
     return Container(
-      width: 210,
+      width: 216,
       decoration: const BoxDecoration(
         color: AppTheme.darkNavy,
-        border: Border(right: BorderSide(
-          color: Color(0x18FFFFFF), width: 0.5)),
+        border: Border(right: BorderSide(color: Color(0x18FFFFFF), width: 0.5)),
       ),
-      child: Column(children: [
-        const SizedBox(height: 8),
-        Expanded(
-          child: ListView(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            children: items.map((item) {
-              final active = location.startsWith(item.route) &&
-                  (item.route != '/dashboard' || location == '/dashboard');
-              return _SidebarItem(item: item, active: active);
-            }).toList(),
-          ),
+      child: Stack(children: [
+        // Background image at bottom of sidebar
+        Positioned(
+          bottom: 0, left: 0, right: 0,
+          height: 220,
+          child: Stack(children: [
+            Positioned.fill(
+              child: Image.asset('assets/logos/bg_image.png', fit: BoxFit.cover,
+                alignment: Alignment.centerRight),
+            ),
+            Positioned.fill(
+              child: Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [AppTheme.darkNavy, Colors.transparent],
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                  ),
+                ),
+              ),
+            ),
+          ]),
         ),
-        Container(height: 0.5, color: Colors.white.withValues(alpha: 0.08)),
-        Padding(
-          padding: const EdgeInsets.all(8),
-          child: _SidebarItem(
-            item: _NavItem('/settings', Icons.settings_outlined, 'Settings'),
-            active: location.startsWith('/settings'),
+
+        // Nav content
+        Column(children: [
+          // Logo
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: Row(children: [
+              Image.asset('assets/logos/fleetara_logo.png', width: 36, height: 36),
+              const SizedBox(width: 10),
+              const Text('Fleetara',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16, fontWeight: FontWeight.w700, letterSpacing: 0.2)),
+            ]),
           ),
-        ),
-        const SizedBox(height: 4),
+          const SizedBox(height: 4),
+
+          // Nav items
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              children: items.map((item) {
+                final active = location.startsWith(item.route) &&
+                    (item.route != '/dashboard' || location == '/dashboard');
+                return _SidebarItem(item: item, active: active);
+              }).toList(),
+            ),
+          ),
+
+          // Settings
+          Container(height: 0.5, color: Colors.white.withValues(alpha: 0.08)),
+          Padding(
+            padding: const EdgeInsets.all(8),
+            child: _SidebarItem(
+              item: _NavItem('/settings', Icons.settings_outlined, 'Settings'),
+              active: location.startsWith('/settings'),
+            ),
+          ),
+          const SizedBox(height: 4),
+        ]),
       ]),
     );
   }
@@ -252,41 +317,34 @@ class _SidebarItem extends StatelessWidget {
   Widget build(BuildContext context) => GestureDetector(
     onTap: () => context.go(item.route),
     child: Container(
-      height: 40,
+      height: 42,
       margin: const EdgeInsets.symmetric(vertical: 2),
       padding: const EdgeInsets.symmetric(horizontal: 10),
       decoration: BoxDecoration(
         color: active
-          ? Colors.white.withValues(alpha: 0.10)
+          ? AppTheme.accent.withValues(alpha: 0.18)
           : Colors.transparent,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(10),
         border: active
-          ? Border.all(color: Colors.white.withValues(alpha: 0.08), width: 0.5)
+          ? Border.all(color: AppTheme.accent.withValues(alpha: 0.25), width: 0.5)
           : null,
       ),
       child: Row(children: [
-        // Left accent bar
-        Container(
-          width: 3, height: 20,
-          margin: const EdgeInsets.only(right: 8),
-          decoration: BoxDecoration(
-            color: active ? AppTheme.accent : Colors.transparent,
-            borderRadius: BorderRadius.circular(2),
-          ),
-        ),
-        Icon(item.icon, size: 17,
-          color: active
-            ? Colors.white
-            : Colors.white.withValues(alpha: 0.45)),
-        const SizedBox(width: 9),
+        Icon(item.icon, size: 18,
+          color: active ? Colors.white : Colors.white.withValues(alpha: 0.45)),
+        const SizedBox(width: 10),
         Expanded(child: Text(item.label,
           style: TextStyle(
-            fontSize: 13, fontWeight: FontWeight.w500,
-            color: active
-              ? Colors.white
-              : Colors.white.withValues(alpha: 0.45),
+            fontSize: 13, fontWeight: active ? FontWeight.w600 : FontWeight.w500,
+            color: active ? Colors.white : Colors.white.withValues(alpha: 0.45),
           ),
         )),
+        if (active)
+          Container(
+            width: 4, height: 4,
+            decoration: const BoxDecoration(
+              color: AppTheme.accent, shape: BoxShape.circle),
+          ),
       ]),
     ),
   );
@@ -338,7 +396,6 @@ class _BottomNav extends StatelessWidget {
 // Reusable design components
 // ══════════════════════════════════════════════════════════════════════════════
 
-/// Elevated card with subtle navy shadow.
 class FleetCard extends StatelessWidget {
   final Widget  child;
   final EdgeInsetsGeometry padding;
@@ -363,12 +420,8 @@ class FleetCard extends StatelessWidget {
         color: color ?? AppTheme.surface,
         borderRadius: BorderRadius.circular(radius),
         boxShadow: const [
-          BoxShadow(
-            color: Color(0x0C1E3A72),
-            blurRadius: 20, spreadRadius: 0, offset: Offset(0, 6)),
-          BoxShadow(
-            color: Color(0x071E3A72),
-            blurRadius: 4,  spreadRadius: 0, offset: Offset(0, 2)),
+          BoxShadow(color: Color(0x0C1E3A72), blurRadius: 20, offset: Offset(0, 6)),
+          BoxShadow(color: Color(0x071E3A72), blurRadius: 4,  offset: Offset(0, 2)),
         ],
       ),
       child: child,
@@ -378,7 +431,6 @@ class FleetCard extends StatelessWidget {
   }
 }
 
-/// Status badge pill.
 class StatusPill extends StatelessWidget {
   final String label;
   final Color  color;
@@ -397,7 +449,6 @@ class StatusPill extends StatelessWidget {
   );
 }
 
-/// Thin progress bar that shifts colour as value increases.
 class FleetProgressBar extends StatelessWidget {
   final double value;
   const FleetProgressBar({super.key, required this.value});
@@ -420,16 +471,28 @@ class FleetProgressBar extends StatelessWidget {
 }
 
 class SectionHeader extends StatelessWidget {
-  final String title;
-  const SectionHeader(this.title, {super.key});
+  final String      title;
+  final String?     action;
+  final VoidCallback? onAction;
+  const SectionHeader(this.title, {super.key, this.action, this.onAction});
 
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.only(bottom: 12),
-    child: Text(title,
-      style: const TextStyle(
-        fontSize: 13, fontWeight: FontWeight.w700,
-        color: AppTheme.textPrimary, letterSpacing: 0.1)),
+    child: Row(children: [
+      Text(title,
+        style: const TextStyle(
+          fontSize: 14, fontWeight: FontWeight.w700,
+          color: AppTheme.textPrimary, letterSpacing: 0.1)),
+      const Spacer(),
+      if (action != null)
+        GestureDetector(
+          onTap: onAction,
+          child: Text(action!,
+            style: const TextStyle(
+              fontSize: 12, fontWeight: FontWeight.w500, color: AppTheme.accent)),
+        ),
+    ]),
   );
 }
 

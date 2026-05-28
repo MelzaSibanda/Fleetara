@@ -54,24 +54,24 @@ class OwnerDashboardPage extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // ── Greeting ───────────────────────────────────────
+                      // ── Greeting ────────────────────────────────────────
                       Row(children: [
                         Expanded(child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text('$greeting, ${user.firstName}',
                               style: TextStyle(
-                                fontSize: isMobile ? 16 : 20,
+                                fontSize: isMobile ? 18 : 22,
                                 fontWeight: FontWeight.w700,
                                 color: AppTheme.textPrimary)),
-                            const SizedBox(height: 3),
+                            const SizedBox(height: 4),
                             Wrap(spacing: 8, children: [
                               Text(dateStr,
                                 style: const TextStyle(
                                   fontSize: 12, color: AppTheme.textMuted)),
                               Container(
                                 padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 2),
+                                  horizontal: 9, vertical: 3),
                                 decoration: BoxDecoration(
                                   color: AppTheme.emerald.withValues(alpha: 0.12),
                                   borderRadius: BorderRadius.circular(20)),
@@ -84,56 +84,67 @@ class OwnerDashboardPage extends StatelessWidget {
                           ],
                         )),
                       ]),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 22),
 
-                      // ── KPI cards ──────────────────────────────────────
+                      // ── KPI cards ────────────────────────────────────────
                       GridView.count(
                         crossAxisCount: Responsive.kpiColumns(context),
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
                         crossAxisSpacing: 12,
                         mainAxisSpacing: 12,
-                        childAspectRatio: isMobile ? 1.5 : 1.2,
+                        childAspectRatio: isMobile ? 1.45 : 1.25,
                         children: const [
                           StatCard(
-                            label: 'Active trips',    value: '—',
-                            icon: Icons.route,        color: AppTheme.accent,
-                            sparkValues: [0.3,0.5,0.4,0.7,0.5,0.8,1.0]),
+                            label: 'Active trips',
+                            value: '—',
+                            icon:  Icons.route,
+                            color: AppTheme.accent,
+                            trend: 'On road',
+                            sparkValues: [0.3, 0.5, 0.4, 0.7, 0.5, 0.8, 1.0]),
                           StatCard(
-                            label: 'Fleet vehicles',  value: '—',
-                            icon: Icons.local_shipping, color: AppTheme.primary,
-                            sparkValues: [0.6,0.5,0.7,0.6,0.8,0.7,1.0]),
+                            label: 'Fleet vehicles',
+                            value: '—',
+                            icon:  Icons.local_shipping,
+                            color: AppTheme.primary,
+                            trend: 'Total',
+                            sparkValues: [0.6, 0.5, 0.7, 0.6, 0.8, 0.7, 1.0]),
                           StatCard(
-                            label: 'Revenue (MTD)',   value: '—',
-                            icon: Icons.attach_money, color: AppTheme.emerald,
-                            sparkValues: [0.4,0.6,0.5,0.7,0.6,0.9,1.0]),
+                            label: 'Revenue (MTD)',
+                            value: 'R —',
+                            icon:  Icons.attach_money,
+                            color: AppTheme.emerald,
+                            trend: 'This month',
+                            sparkValues: [0.4, 0.6, 0.5, 0.7, 0.6, 0.9, 1.0]),
                           StatCard(
-                            label: 'Open alerts',     value: '—',
-                            icon: Icons.warning_amber_rounded,
+                            label: 'Open alerts',
+                            value: '—',
+                            icon:  Icons.warning_amber_rounded,
                             color: AppTheme.amber,
-                            sparkValues: [0.8,0.6,0.9,0.5,0.7,0.4,1.0]),
+                            trend: 'Needs review',
+                            sparkValues: [0.8, 0.6, 0.9, 0.5, 0.7, 0.4, 0.2]),
                         ],
                       ),
                       const SizedBox(height: 20),
 
-                      // ── Finance summary strip ──────────────────────────
+                      // ── Finance summary card ─────────────────────────────
                       _FinanceSummaryCard(isMobile: isMobile),
                       const SizedBox(height: 16),
 
-                      // ── Fleet health + Alerts ──────────────────────────
+                      // ── Fleet health + Alerts ───────────────────────────
                       isMobile
                         ? Column(children: [
                             _FleetHealthCard(),
                             const SizedBox(height: 14),
                             _AlertsCard(),
                           ])
-                        : Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(child: _FleetHealthCard()),
-                              const SizedBox(width: 14),
-                              Expanded(child: _AlertsCard()),
-                            ]),
+                        : Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Expanded(flex: 5, child: _FleetHealthCard()),
+                            const SizedBox(width: 14),
+                            Expanded(flex: 7, child: _AlertsCard()),
+                          ]),
+
+                      const SizedBox(height: 16),
                     ],
                   ),
                 ),
@@ -152,7 +163,7 @@ class OwnerDashboardPage extends StatelessWidget {
        'Jul','Aug','Sep','Oct','Nov','Dec'][m - 1];
 }
 
-// ── Finance Summary ────────────────────────────────────────────────────────
+// ── Finance Summary ──────────────────────────────────────────────────────────
 
 class _FinanceSummaryCard extends StatelessWidget {
   final bool isMobile;
@@ -171,72 +182,59 @@ class _FinanceSummaryCard extends StatelessWidget {
           color: AppTheme.darkNavy.withValues(alpha: 0.25),
           blurRadius: 20, offset: const Offset(0, 8))],
       ),
-      padding: EdgeInsets.all(isMobile ? 16 : 20),
+      padding: EdgeInsets.all(isMobile ? 16 : 22),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          const Icon(Icons.account_balance_wallet_outlined,
-            color: Colors.white70, size: 16),
-          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(8)),
+            child: const Icon(Icons.account_balance_wallet_outlined,
+              color: Colors.white, size: 16),
+          ),
+          const SizedBox(width: 10),
           const Text('Finance Overview',
-            style: TextStyle(fontSize: 12, color: Colors.white70,
-              fontWeight: FontWeight.w500)),
+            style: TextStyle(fontSize: 13, color: Colors.white,
+              fontWeight: FontWeight.w600)),
           const Spacer(),
           GestureDetector(
             onTap: () => context.go('/invoices'),
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
               decoration: BoxDecoration(
                 color: Colors.white.withValues(alpha: 0.14),
                 borderRadius: BorderRadius.circular(20)),
               child: const Row(mainAxisSize: MainAxisSize.min, children: [
                 Text('View all', style: TextStyle(
-                  fontSize: 11, color: Colors.white,
-                  fontWeight: FontWeight.w500)),
+                  fontSize: 11, color: Colors.white, fontWeight: FontWeight.w500)),
                 SizedBox(width: 4),
                 Icon(Icons.arrow_forward, size: 12, color: Colors.white70),
               ]),
             ),
           ),
         ]),
-        SizedBox(height: isMobile ? 12 : 16),
-        // Stats row — wraps on very small screens
+        SizedBox(height: isMobile ? 14 : 20),
+        // Finance stats row
         isMobile
-          ? Wrap(
-              spacing: 0,
-              runSpacing: 10,
-              children: const [
-                _FinanceStat(label: 'Revenue',     value: 'R —',
-                  color: AppTheme.emerald, flex: 1),
-                _FinanceStat(label: 'Expenses',    value: 'R —',
-                  color: AppTheme.rose, flex: 1),
-                _FinanceStat(label: 'Outstanding', value: 'R —',
-                  color: AppTheme.amber, flex: 1),
-              ],
-            )
+          ? Wrap(spacing: 0, runSpacing: 12, children: const [
+              _FinanceStat(label: 'Revenue',     value: 'R —', color: AppTheme.emerald),
+              _FinanceStat(label: 'Expenses',    value: 'R —', color: AppTheme.rose),
+              _FinanceStat(label: 'Outstanding', value: 'R —', color: AppTheme.amber),
+            ])
           : Row(children: const [
-              Expanded(child: _FinanceStat(label: 'Revenue',
-                value: 'R —', color: AppTheme.emerald)),
-              Expanded(child: _FinanceStat(label: 'Expenses',
-                value: 'R —', color: AppTheme.rose)),
-              Expanded(child: _FinanceStat(label: 'Outstanding',
-                value: 'R —', color: AppTheme.amber)),
+              Expanded(child: _FinanceStat(label: 'Revenue',     value: 'R —', color: AppTheme.emerald)),
+              Expanded(child: _FinanceStat(label: 'Expenses',    value: 'R —', color: AppTheme.rose)),
+              Expanded(child: _FinanceStat(label: 'Outstanding', value: 'R —', color: AppTheme.amber)),
             ]),
-        SizedBox(height: isMobile ? 14 : 16),
-        // Quick finance links
-        Row(children: [
-          _FinanceChip(
-            label: 'New Invoice',
-            icon: Icons.add,
+        SizedBox(height: isMobile ? 16 : 20),
+        // Quick finance actions
+        Wrap(spacing: 8, runSpacing: 8, children: [
+          _FinanceChip(label: 'New Invoice', icon: Icons.add,
             onTap: () => context.go('/invoices/add')),
-          const SizedBox(width: 8),
-          _FinanceChip(
-            label: 'Report',
-            icon: Icons.bar_chart_outlined,
+          _FinanceChip(label: 'Report', icon: Icons.bar_chart_outlined,
             onTap: () => context.go('/invoices/summary')),
-          const SizedBox(width: 8),
-          _FinanceChip(
-            label: 'Statement',
-            icon: Icons.description_outlined,
+          _FinanceChip(label: 'Statement', icon: Icons.description_outlined,
             onTap: () => context.go('/invoices/statement')),
         ]),
       ]),
@@ -247,9 +245,7 @@ class _FinanceSummaryCard extends StatelessWidget {
 class _FinanceStat extends StatelessWidget {
   final String label, value;
   final Color  color;
-  final int    flex;
-  const _FinanceStat({required this.label, required this.value,
-    required this.color, this.flex = 0});
+  const _FinanceStat({required this.label, required this.value, required this.color});
 
   @override
   Widget build(BuildContext context) => Column(
@@ -259,12 +255,11 @@ class _FinanceStat extends StatelessWidget {
         Container(width: 6, height: 6,
           decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
         const SizedBox(width: 6),
-        Text(label, style: const TextStyle(
-          fontSize: 10, color: Colors.white60)),
+        Text(label, style: const TextStyle(fontSize: 10, color: Colors.white60)),
       ]),
-      const SizedBox(height: 4),
+      const SizedBox(height: 5),
       Text(value, style: const TextStyle(
-        fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white)),
+        fontSize: 18, fontWeight: FontWeight.w700, color: Colors.white)),
     ],
   );
 }
@@ -273,49 +268,64 @@ class _FinanceChip extends StatelessWidget {
   final String       label;
   final IconData     icon;
   final VoidCallback onTap;
-  const _FinanceChip({required this.label, required this.icon,
-    required this.onTap});
+  const _FinanceChip({required this.label, required this.icon, required this.onTap});
 
   @override
   Widget build(BuildContext context) => GestureDetector(
     onTap: onTap,
     child: Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.2), width: 0.5)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 0.5)),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         Icon(icon, size: 13, color: Colors.white),
-        const SizedBox(width: 5),
+        const SizedBox(width: 6),
         Text(label, style: const TextStyle(
-          fontSize: 12, color: Colors.white,
-          fontWeight: FontWeight.w500)),
+          fontSize: 12, color: Colors.white, fontWeight: FontWeight.w500)),
       ]),
     ),
   );
 }
 
-// ── Fleet Health ────────────────────────────────────────────────────────────
+// ── Fleet Health ─────────────────────────────────────────────────────────────
 
 class _FleetHealthCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(16),
-    decoration: AppTheme.cardDecoration,
+    padding: const EdgeInsets.all(18),
+    decoration: BoxDecoration(
+      color: AppTheme.surface,
+      borderRadius: BorderRadius.circular(14),
+      border: Border.all(color: AppTheme.border, width: 0.5),
+      boxShadow: const [
+        BoxShadow(color: Color(0x081E3A72), blurRadius: 16, offset: Offset(0, 4)),
+      ],
+    ),
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      const Text('Fleet health',
-        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600,
-          color: AppTheme.textPrimary)),
-      const SizedBox(height: 16),
-      Center(child: SizedBox(width: 110, height: 110, child: _DonutChart())),
-      const SizedBox(height: 16),
-      _LegendRow(color: AppTheme.accent,   label: 'Active',      value: '—'),
-      const SizedBox(height: 8),
-      _LegendRow(color: AppTheme.emerald,  label: 'On trip',     value: '—'),
-      const SizedBox(height: 8),
-      _LegendRow(color: AppTheme.amber,    label: 'Maintenance', value: '—'),
+      Row(children: [
+        Container(
+          width: 32, height: 32,
+          decoration: BoxDecoration(
+            color: AppTheme.accent.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(8)),
+          child: const Icon(Icons.local_shipping_outlined,
+            color: AppTheme.accent, size: 16),
+        ),
+        const SizedBox(width: 10),
+        const Text('Fleet health',
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700,
+            color: AppTheme.textPrimary)),
+      ]),
+      const SizedBox(height: 20),
+      Center(child: SizedBox(width: 120, height: 120, child: _DonutChart())),
+      const SizedBox(height: 20),
+      _LegendRow(color: AppTheme.accent,  label: 'Active',      value: '—'),
+      const SizedBox(height: 10),
+      _LegendRow(color: AppTheme.emerald, label: 'On trip',     value: '—'),
+      const SizedBox(height: 10),
+      _LegendRow(color: AppTheme.amber,   label: 'Maintenance', value: '—'),
     ]),
   );
 }
@@ -327,13 +337,14 @@ class _LegendRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Row(children: [
-    Container(width: 8, height: 8,
-      decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+    Container(
+      width: 10, height: 10,
+      decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(3))),
     const SizedBox(width: 8),
     Text(label, style: const TextStyle(fontSize: 12, color: AppTheme.textMuted)),
     const Spacer(),
-    Text(value, style: const TextStyle(fontSize: 12,
-      fontWeight: FontWeight.w600, color: AppTheme.textPrimary)),
+    Text(value, style: const TextStyle(
+      fontSize: 13, fontWeight: FontWeight.w700, color: AppTheme.textPrimary)),
   ]);
 }
 
@@ -345,9 +356,14 @@ class _DonutChart extends StatelessWidget {
       _Segment(AppTheme.emerald, 0.35),
       _Segment(AppTheme.amber,   0.20),
     ]),
-    child: const Center(child: Text('—',
-      style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600,
-        color: AppTheme.textPrimary))),
+    child: const Center(child: Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text('—', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700,
+          color: AppTheme.textPrimary)),
+        Text('Total', style: TextStyle(fontSize: 10, color: AppTheme.textMuted)),
+      ],
+    )),
   );
 }
 
@@ -373,6 +389,12 @@ class _DonutPainter extends CustomPainter {
       ..strokeWidth = strokeW
       ..strokeCap   = StrokeCap.round;
 
+    // Background ring
+    canvas.drawCircle(Offset(cx, cy), r, Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeW
+      ..color = AppTheme.border);
+
     double start = -math.pi / 2;
     for (final seg in segments) {
       final sweep = (seg.value * 2 * math.pi) - gap;
@@ -388,22 +410,82 @@ class _DonutPainter extends CustomPainter {
   bool shouldRepaint(_DonutPainter old) => false;
 }
 
-// ── Alerts ──────────────────────────────────────────────────────────────────
+// ── Alerts card ───────────────────────────────────────────────────────────────
 
 class _AlertsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(16),
-    decoration: AppTheme.cardDecoration,
+    padding: const EdgeInsets.all(18),
+    decoration: BoxDecoration(
+      color: AppTheme.surface,
+      borderRadius: BorderRadius.circular(14),
+      border: Border.all(color: AppTheme.border, width: 0.5),
+      boxShadow: const [
+        BoxShadow(color: Color(0x081E3A72), blurRadius: 16, offset: Offset(0, 4)),
+      ],
+    ),
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      const Text('Alerts',
-        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600,
-          color: AppTheme.textPrimary)),
-      const SizedBox(height: 12),
+      Row(children: [
+        Container(
+          width: 32, height: 32,
+          decoration: BoxDecoration(
+            color: AppTheme.amber.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(8)),
+          child: const Icon(Icons.notifications_outlined,
+            color: AppTheme.amber, size: 16),
+        ),
+        const SizedBox(width: 10),
+        const Text('Alerts & Reminders',
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700,
+            color: AppTheme.textPrimary)),
+      ]),
+      const SizedBox(height: 14),
       const AlertCard(
         title:   'No active alerts',
         message: 'Vehicle documents and service reminders will appear here.',
         type:    AlertType.info),
+      const SizedBox(height: 10),
+      // Quick links row
+      Row(children: [
+        _AlertAction(
+          label: 'Vehicles', icon: Icons.local_shipping_outlined,
+          onTap: () => context.go('/vehicles')),
+        const SizedBox(width: 8),
+        _AlertAction(
+          label: 'Repairs', icon: Icons.handyman_outlined,
+          onTap: () => context.go('/repairs')),
+        const SizedBox(width: 8),
+        _AlertAction(
+          label: 'Invoices', icon: Icons.receipt_long_outlined,
+          onTap: () => context.go('/invoices')),
+      ]),
     ]),
+  );
+}
+
+class _AlertAction extends StatelessWidget {
+  final String       label;
+  final IconData     icon;
+  final VoidCallback onTap;
+  const _AlertAction({required this.label, required this.icon, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) => Expanded(
+    child: GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          color: AppTheme.background,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppTheme.border, width: 0.8)),
+        child: Column(children: [
+          Icon(icon, size: 18, color: AppTheme.textMuted),
+          const SizedBox(height: 4),
+          Text(label, style: const TextStyle(
+            fontSize: 11, fontWeight: FontWeight.w500, color: AppTheme.textMuted)),
+        ]),
+      ),
+    ),
   );
 }
