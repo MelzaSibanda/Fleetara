@@ -74,7 +74,17 @@ class _TripDetailPageState extends State<TripDetailPage> {
       final notifTitle = newStatus == 'in_progress' ? 'Trip started'
           : newStatus == 'completed' ? 'Trip completed' : 'Trip cancelled';
       unawaited(sl<NotificationService>().sendToManagers(
-        notifType, notifTitle, route, actor: _trip!.driverName));
+        notifType, notifTitle, route,
+        actor: _trip!.driverName,
+        data: {
+          'origin':      _trip!.origin,
+          'destination': _trip!.destination,
+          'driver':      _trip!.driverName,
+          'horse_reg':   _trip!.horseReg,
+          'client':      _trip!.clientName,
+          'status':      newStatus,
+        },
+      ));
 
       await _load();
       if (mounted) {

@@ -5,7 +5,7 @@ class NotificationService {
   NotificationService(this._fs);
 
   Future<void> _send(String uid, String type, String title, String body,
-      {String actor = ''}) async {
+      {String actor = '', Map<String, dynamic>? data}) async {
     await _fs.db
         .collection('notifications')
         .doc(uid)
@@ -15,28 +15,29 @@ class NotificationService {
       'title':      title,
       'body':       body,
       'actor':      actor,
+      'data':       data ?? {},
       'is_read':    false,
       'created_at': DateTime.now().toIso8601String(),
     });
   }
 
   Future<void> sendToManagers(String type, String title, String body,
-      {String actor = ''}) async {
+      {String actor = '', Map<String, dynamic>? data}) async {
     try {
       final snap = await _fs.db
           .collection('users')
           .where('role', whereIn: ['fleet_manager', 'owner', 'admin'])
           .get();
-      await Future.wait(
-          snap.docs.map((d) => _send(d.id, type, title, body, actor: actor)));
+      await Future.wait(snap.docs.map((d) =>
+          _send(d.id, type, title, body, actor: actor, data: data)));
     } catch (_) {}
   }
 
   Future<void> sendToUser(String uid, String type, String title, String body,
-      {String actor = ''}) async {
+      {String actor = '', Map<String, dynamic>? data}) async {
     if (uid.isEmpty) return;
     try {
-      await _send(uid, type, title, body, actor: actor);
+      await _send(uid, type, title, body, actor: actor, data: data);
     } catch (_) {}
   }
 
@@ -60,9 +61,9 @@ class NotificationService {
         .orderBy('created_at', descending: true)
         .snapshots()
         .map((s) => s.docs.map((d) {
-              final data = Map<String, dynamic>.from(d.data());
-              data['id'] = d.id;
-              return data;
+              final item = Map<String, dynamic>.from(d.data());
+              item['id'] = d.id;
+              return item;
             }).toList());
   }
 
@@ -88,6 +89,32 @@ class NotificationService {
       final batch = _fs.db.batch();
       for (final d in snap.docs) {
         batch.update(d.reference, {'is_read': true});
+      }
+      await batch.commit();
+    } catch (_) {}
+  }
+
+  Future<void> deleteNotification(String uid, String notifId) async {
+    try {
+      await _fs.db
+          .collection('notifications')
+          .doc(uid)
+          .collection('items')
+          .doc(notifId)
+          .delete();
+    } catch (_) {}
+  }
+
+  Future<void> clearAll(String uid) async {
+    try {
+      final snap = await _fs.db
+          .collection('notifications')
+          .doc(uid)
+          .collection('items')
+          .get();
+      final batch = _fs.db.batch();
+      for (final d in snap.docs) {
+        batch.delete(d.reference);
       }
       await batch.commit();
     } catch (_) {}

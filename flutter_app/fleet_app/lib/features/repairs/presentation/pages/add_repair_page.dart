@@ -97,6 +97,12 @@ class _AddRepairPageState extends State<AddRepairPage> {
         'repair', 'Repair reported',
         '$priorityLabel: ${_titleCtrl.text.trim()}',
         actor: reporterName,
+        data: {
+          'priority':    _priority,
+          'title':       _titleCtrl.text.trim(),
+          'description': _descCtrl.text.trim(),
+          'vehicle_reg': _selectedVehicleReg,
+        },
       ));
 
       if (mounted) {

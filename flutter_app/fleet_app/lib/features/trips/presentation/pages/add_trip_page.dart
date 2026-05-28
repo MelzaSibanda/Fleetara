@@ -145,13 +145,23 @@ class _AddTripPageState extends State<AddTripPage> {
       final route      = '${_originCtrl.text.trim()} → ${_destCtrl.text.trim()}';
       final driverName = driver['name']?.toString() ?? '';
       final ns         = sl<NotificationService>();
+      final tripData   = {
+        'origin':      _originCtrl.text.trim(),
+        'destination': _destCtrl.text.trim(),
+        'driver':      driverName,
+        'horse_reg':   horse['reg'] ?? '',
+        'client':      _clientCtrl.text.trim(),
+        'scheduled':   _dateCtrl.text.trim(),
+      };
       unawaited(ns.sendToManagers(
         'trip_assigned', 'Trip assigned',
         '${driverName.isNotEmpty ? driverName : 'Driver'} assigned: $route',
+        data: tripData,
       ));
       if (_selectedDriver != null) {
         unawaited(ns.sendToUser(
-          _selectedDriver!, 'trip_assigned', 'Trip assigned to you', route));
+          _selectedDriver!, 'trip_assigned', 'Trip assigned to you', route,
+          data: tripData));
       }
 
       if (mounted) {

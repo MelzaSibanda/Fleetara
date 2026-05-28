@@ -1,0 +1,19 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // All authenticated users can read/write operational collections
+    match /{collection}/{document} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Notifications: any authenticated user can create (needed for cross-user
+    // alerts, e.g. driver triggers notification for fleet manager).
+    // Only the owner of the subcollection can read, update, or delete.
+    match /notifications/{userId}/items/{itemId} {
+      allow create:               if request.auth != null;
+      allow read, update, delete: if request.auth != null
+                                  && request.auth.uid == userId;
+    }
+  }
+}

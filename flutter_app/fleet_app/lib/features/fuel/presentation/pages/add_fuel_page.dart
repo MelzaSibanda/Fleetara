@@ -84,6 +84,14 @@ class _AddFuelPageState extends State<AddFuelPage> {
         '${reg.isNotEmpty ? reg : 'Vehicle'} — ${liters}L'
             '${station.isNotEmpty ? ' at $station' : ''}',
         actor: actor,
+        data: {
+          'vehicle_reg': reg,
+          'liters':      double.tryParse(liters) ?? 0,
+          'cost':        double.tryParse(_costCtrl.text) ?? 0,
+          'fuel_type':   _fuelType,
+          'station':     station,
+          'odometer':    int.tryParse(_odomCtrl.text) ?? 0,
+        },
       ));
 
       if (mounted) {
