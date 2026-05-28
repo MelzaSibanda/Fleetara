@@ -225,13 +225,15 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
                       const SizedBox(height: 22),
 
                       // ── KPI cards ────────────────────────────────────────
-                      GridView.count(
-                        crossAxisCount: Responsive.kpiColumns(context),
+                      GridView(
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
-                        crossAxisSpacing: 12,
-                        mainAxisSpacing: 12,
-                        childAspectRatio: isMobile ? 1.45 : 1.25,
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: Responsive.kpiColumns(context),
+                          crossAxisSpacing: 12,
+                          mainAxisSpacing: 12,
+                          mainAxisExtent: 170,
+                        ),
                         children: [
                           StatCard(
                             label:       'Active trips',
