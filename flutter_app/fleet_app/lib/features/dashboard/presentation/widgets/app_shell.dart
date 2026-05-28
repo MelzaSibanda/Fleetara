@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/responsive.dart';
+import '../../../../core/utils/service_locator.dart';
+import '../../../../core/services/notification_service.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../auth/presentation/bloc/auth_event.dart';
 import '../../../auth/presentation/bloc/auth_state.dart';
@@ -55,7 +58,7 @@ class AppShell extends StatelessWidget {
               fontSize: 14, fontWeight: FontWeight.w600, color: AppTheme.textPrimary)),
         actions: [
           ...?actions,
-          _NotificationBell(count: 2),
+          _NotificationBell(uid: FirebaseAuth.instance.currentUser?.uid ?? ''),
           const SizedBox(width: 6),
           _UserAvatar(initials: initials, user: user, showName: isWide),
           const SizedBox(width: 14),
@@ -108,33 +111,41 @@ class AppShell extends StatelessWidget {
 // ── AppBar components ──────────────────────────────────────────────────────
 
 class _NotificationBell extends StatelessWidget {
-  final int count;
-  const _NotificationBell({this.count = 0});
+  final String uid;
+  const _NotificationBell({required this.uid});
 
   @override
-  Widget build(BuildContext context) => Stack(
-    children: [
-      IconButton(
-        icon: const Icon(Icons.notifications_outlined, size: 21, color: AppTheme.textMuted),
-        onPressed: () {},
-      ),
-      if (count > 0)
-        Positioned(
-          right: 8, top: 8,
-          child: Container(
-            width: 17, height: 17,
-            decoration: const BoxDecoration(
-              color: AppTheme.rose, shape: BoxShape.circle),
-            child: Center(
-              child: Text('$count',
-                style: const TextStyle(
-                  color: Colors.white, fontSize: 9,
-                  fontWeight: FontWeight.w700)),
+  Widget build(BuildContext context) {
+    return StreamBuilder<int>(
+      stream: sl<NotificationService>().unreadCountStream(uid),
+      builder: (context, snap) {
+        final count = snap.data ?? 0;
+        return Stack(
+          children: [
+            IconButton(
+              icon: const Icon(Icons.notifications_outlined, size: 21, color: AppTheme.textMuted),
+              onPressed: () => context.go('/notifications'),
             ),
-          ),
-        ),
-    ],
-  );
+            if (count > 0)
+              Positioned(
+                right: 8, top: 8,
+                child: Container(
+                  width: 17, height: 17,
+                  decoration: const BoxDecoration(
+                    color: AppTheme.rose, shape: BoxShape.circle),
+                  child: Center(
+                    child: Text(count > 99 ? '99+' : '$count',
+                      style: const TextStyle(
+                        color: Colors.white, fontSize: 9,
+                        fontWeight: FontWeight.w700)),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
 }
 
 class _UserAvatar extends StatelessWidget {

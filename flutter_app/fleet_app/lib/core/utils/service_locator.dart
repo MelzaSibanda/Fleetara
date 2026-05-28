@@ -6,12 +6,16 @@ import '../../features/driver/presentation/bloc/driver_home_bloc.dart';
 import '../../features/driver/presentation/bloc/inspection_bloc.dart';
 import '../../features/vehicles/presentation/bloc/vehicle_bloc.dart';
 import '../services/firestore_service.dart';
+import '../services/notification_service.dart';
 
 final GetIt sl = GetIt.instance;
 
 void setupServiceLocator() {
   // Core
   sl.registerLazySingleton<FirestoreService>(() => FirestoreService());
+  sl.registerLazySingleton<NotificationService>(
+    () => NotificationService(sl<FirestoreService>()),
+  );
   // Auth
   sl.registerLazySingleton<AuthRemoteDataSource>(
     () => AuthRemoteDataSource(sl<FirestoreService>()),

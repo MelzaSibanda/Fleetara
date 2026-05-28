@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/service_locator.dart';
 import '../../../../core/services/firestore_service.dart';
+import '../../../../core/services/notification_service.dart';
 
 class AddTripPage extends StatefulWidget {
   const AddTripPage({super.key});
@@ -139,6 +141,19 @@ class _AddTripPageState extends State<AddTripPage> {
         'status':             'scheduled',
         'created_at':         DateTime.now().toIso8601String(),
       });
+
+      final route      = '${_originCtrl.text.trim()} → ${_destCtrl.text.trim()}';
+      final driverName = driver['name']?.toString() ?? '';
+      final ns         = sl<NotificationService>();
+      unawaited(ns.sendToManagers(
+        'trip_assigned', 'Trip assigned',
+        '${driverName.isNotEmpty ? driverName : 'Driver'} assigned: $route',
+      ));
+      if (_selectedDriver != null) {
+        unawaited(ns.sendToUser(
+          _selectedDriver!, 'trip_assigned', 'Trip assigned to you', route));
+      }
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text('Trip created successfully',

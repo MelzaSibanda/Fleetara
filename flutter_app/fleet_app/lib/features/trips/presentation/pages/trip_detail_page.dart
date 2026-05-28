@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/service_locator.dart';
 import '../../../../core/services/firestore_service.dart';
+import '../../../../core/services/notification_service.dart';
 import '../../data/trip_model.dart';
 
 class TripDetailPage extends StatefulWidget {
@@ -65,6 +67,15 @@ class _TripDetailPageState extends State<TripDetailPage> {
       if (newStatus == 'in_progress') updates['actual_start'] = DateTime.now().toIso8601String();
       if (newStatus == 'completed')   updates['actual_end']   = DateTime.now().toIso8601String();
       await _fs.db.collection('trips').doc(widget.tripId).update(updates);
+
+      final route = '${_trip!.origin} → ${_trip!.destination}';
+      final notifType = newStatus == 'in_progress' ? 'trip_started'
+          : newStatus == 'completed' ? 'trip_completed' : 'trip_cancelled';
+      final notifTitle = newStatus == 'in_progress' ? 'Trip started'
+          : newStatus == 'completed' ? 'Trip completed' : 'Trip cancelled';
+      unawaited(sl<NotificationService>().sendToManagers(
+        notifType, notifTitle, route, actor: _trip!.driverName));
+
       await _load();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(

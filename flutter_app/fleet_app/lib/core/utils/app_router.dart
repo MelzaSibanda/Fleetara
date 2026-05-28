@@ -30,6 +30,7 @@ import '../../features/driver/presentation/pages/daily_check_history_page.dart';
 import '../../features/driver/presentation/pages/driver_trips_page.dart';
 import '../../features/repairs/presentation/pages/repairs_page.dart';
 import '../../features/repairs/presentation/pages/add_repair_page.dart';
+import '../../features/notifications/presentation/pages/notifications_page.dart';
 import '../../features/gps/presentation/pages/live_map_page.dart';
 
 GoRouter buildRouter(AuthBloc authBloc, ChangeNotifier refreshListenable) {
@@ -118,6 +119,7 @@ GoRouter buildRouter(AuthBloc authBloc, ChangeNotifier refreshListenable) {
       GoRoute(path: '/driver/checks/add', builder: (_, __) => const DailyCheckFormPage()),
       GoRoute(path: '/repairs',          builder: (_, __) => const RepairsPage()),
       GoRoute(path: '/repairs/add',      builder: (_, __) => const AddRepairPage()),
+      GoRoute(path: '/notifications',    builder: (_, __) => const NotificationsPage()),
       GoRoute(path: '/gps/live',         builder: (_, __) => const LiveMapPage()),
     ],
   );

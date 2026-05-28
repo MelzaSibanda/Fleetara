@@ -1,10 +1,12 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/service_locator.dart';
 import '../../../../core/services/firestore_service.dart';
+import '../../../../core/services/notification_service.dart';
 import '../../../../core/utils/responsive.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
 class AddRepairPage extends StatefulWidget {
   const AddRepairPage({super.key});
@@ -89,6 +91,14 @@ class _AddRepairPageState extends State<AddRepairPage> {
         'reported_by_name':   reporterName,
         'reported_at':        DateTime.now().toIso8601String(),
       });
+
+      final priorityLabel = '${_priority[0].toUpperCase()}${_priority.substring(1)}';
+      unawaited(sl<NotificationService>().sendToManagers(
+        'repair', 'Repair reported',
+        '$priorityLabel: ${_titleCtrl.text.trim()}',
+        actor: reporterName,
+      ));
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text('Repair reported!', style: TextStyle(color: Colors.white)),

@@ -1,8 +1,11 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/service_locator.dart';
 import '../../../../core/services/firestore_service.dart';
+import '../../../../core/services/notification_service.dart';
 
 class AddFuelPage extends StatefulWidget {
   const AddFuelPage({super.key});
@@ -71,6 +74,18 @@ class _AddFuelPageState extends State<AddFuelPage> {
         'location':            _locationCtrl.text.trim(),
         'created_at':          DateTime.now().toIso8601String(),
       });
+
+      final reg     = _selectedHorseReg ?? '';
+      final liters  = _litersCtrl.text;
+      final station = _stationCtrl.text.trim();
+      final actor   = FirebaseAuth.instance.currentUser?.displayName ?? '';
+      unawaited(sl<NotificationService>().sendToManagers(
+        'fuel', 'Fuel logged',
+        '${reg.isNotEmpty ? reg : 'Vehicle'} — ${liters}L'
+            '${station.isNotEmpty ? ' at $station' : ''}',
+        actor: actor,
+      ));
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text('Fuel entry logged!',
