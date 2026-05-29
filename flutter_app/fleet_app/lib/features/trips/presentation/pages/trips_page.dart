@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/service_locator.dart';
 import '../../../../core/services/firestore_service.dart';
+import '../../../auth/presentation/bloc/auth_bloc.dart';
+import '../../../auth/presentation/bloc/auth_state.dart';
 import '../../../dashboard/presentation/widgets/app_shell.dart';
 import '../../data/trip_model.dart';
 import '../../../../core/utils/responsive.dart';
@@ -79,18 +82,24 @@ class _TripsPageState extends State<TripsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final auth     = context.read<AuthBloc>().state;
+    final isDriver = auth is AuthAuthenticated && auth.user.role == 'driver';
+    final showNew  = !isDriver && _filter != 'completed' && _filter != 'cancelled';
+
     return AppShell(
       title: 'Trips',
       actions: [
-        ElevatedButton.icon(
-          onPressed: () async { await context.push('/trips/add'); _loadTrips(); },
-          icon: const Icon(Icons.add, size: 16, color: Colors.white),
-          label: const Text('New trip', style: TextStyle(color: Colors.white)),
-          style: ElevatedButton.styleFrom(
-            minimumSize: const Size(0, 32),
-            padding: const EdgeInsets.symmetric(horizontal: 14)),
-        ),
-        const SizedBox(width: 8),
+        if (showNew) ...[
+          ElevatedButton.icon(
+            onPressed: () async { await context.push('/trips/add'); _loadTrips(); },
+            icon: const Icon(Icons.add, size: 16, color: Colors.white),
+            label: const Text('New trip', style: TextStyle(color: Colors.white)),
+            style: ElevatedButton.styleFrom(
+              minimumSize: const Size(0, 32),
+              padding: const EdgeInsets.symmetric(horizontal: 14)),
+          ),
+          const SizedBox(width: 8),
+        ],
       ],
       child: Column(children: [
         _FilterBar(filters: _filters, selected: _filter,
@@ -104,8 +113,10 @@ class _TripsPageState extends State<TripsPage> {
               ? EmptyState(
                   icon: Icons.route_outlined,
                   title: 'No trips found',
-                  subtitle: 'Create your first trip to get started.',
-                  action: ElevatedButton(
+                  subtitle: isDriver
+                      ? 'Your assigned trips will appear here.'
+                      : 'Create your first trip to get started.',
+                  action: isDriver ? null : ElevatedButton(
                     onPressed: () => context.go('/trips/add'),
                     child: const Text('New trip')),
                 )
@@ -118,7 +129,7 @@ class _TripsPageState extends State<TripsPage> {
                       await context.push('/trips/${t.id}');
                       _loadTrips();
                     },
-                    onDelete: () => _deleteTrip(t),
+                    onDelete: isDriver ? null : () => _deleteTrip(t),
                   )).toList(),
                 ),
         ),
@@ -128,9 +139,10 @@ class _TripsPageState extends State<TripsPage> {
 }
 
 class _TripCard extends StatelessWidget {
-  final TripModel trip;
-  final VoidCallback onTap, onDelete;
-  const _TripCard({required this.trip, required this.onTap, required this.onDelete});
+  final TripModel    trip;
+  final VoidCallback onTap;
+  final VoidCallback? onDelete;
+  const _TripCard({required this.trip, required this.onTap, this.onDelete});
 
   @override
   Widget build(BuildContext context) => GestureDetector(
@@ -146,20 +158,22 @@ class _TripCard extends StatelessWidget {
               style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600,
                 color: AppTheme.textPrimary))),
             StatusPill(label: trip.statusLabel, color: trip.statusColor),
-            const SizedBox(width: 4),
-            PopupMenuButton<String>(
-              icon: const Icon(Icons.more_vert, size: 18, color: AppTheme.textMuted),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              onSelected: (v) { if (v == 'delete') onDelete(); },
-              itemBuilder: (_) => [
-                const PopupMenuItem(value: 'delete',
-                  child: Row(children: [
-                    Icon(Icons.delete_outline, size: 16, color: AppTheme.rose),
-                    SizedBox(width: 10),
-                    Text('Delete', style: TextStyle(fontSize: 13, color: AppTheme.rose)),
-                  ])),
-              ],
-            ),
+            if (onDelete != null) ...[
+              const SizedBox(width: 4),
+              PopupMenuButton<String>(
+                icon: const Icon(Icons.more_vert, size: 18, color: AppTheme.textMuted),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                onSelected: (v) { if (v == 'delete') onDelete!(); },
+                itemBuilder: (_) => [
+                  const PopupMenuItem(value: 'delete',
+                    child: Row(children: [
+                      Icon(Icons.delete_outline, size: 16, color: AppTheme.rose),
+                      SizedBox(width: 10),
+                      Text('Delete', style: TextStyle(fontSize: 13, color: AppTheme.rose)),
+                    ])),
+                ],
+              ),
+            ],
           ]),
           const SizedBox(height: 12),
           // Route visualisation

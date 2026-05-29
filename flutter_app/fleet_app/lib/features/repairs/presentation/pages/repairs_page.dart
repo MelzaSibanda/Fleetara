@@ -21,31 +21,18 @@ class _RepairsPageState extends State<RepairsPage> {
   @override
   void initState() { super.initState(); _load(); }
 
+  List   _allRepairs = [];
+
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
-      late final dynamic snap;
-      switch (_filter) {
-        case 'critical':
-          snap = await _fs.db.collection('repairs')
-            .where('priority', isEqualTo: 'critical')
-            .orderBy('reported_at', descending: true).get();
-          break;
-        case 'in_progress':
-          snap = await _fs.db.collection('repairs')
-            .where('status', isEqualTo: 'in_progress')
-            .orderBy('reported_at', descending: true).get();
-          break;
-        case 'resolved':
-          snap = await _fs.db.collection('repairs')
-            .where('status', isEqualTo: 'resolved')
-            .orderBy('reported_at', descending: true).get();
-          break;
-        default:
-          snap = await _fs.db.collection('repairs')
-            .orderBy('reported_at', descending: true).get();
-      }
-      final repairs = _fs.docsToList(snap);
+      final snap    = await _fs.db.collection('repairs').get();
+      final repairs = _fs.docsToList(snap)
+        ..sort((a, b) {
+          final ra = (a['reported_at'] ?? '').toString();
+          final rb = (b['reported_at'] ?? '').toString();
+          return rb.compareTo(ra);
+        });
 
       // Back-fill missing reporter names from users collection
       final missingUids = repairs
@@ -75,8 +62,32 @@ class _RepairsPageState extends State<RepairsPage> {
         }
       }
 
-      setState(() { _repairs = repairs; _loading = false; });
+      setState(() { _allRepairs = repairs; _applyFilter(); _loading = false; });
     } catch (_) { setState(() => _loading = false); }
+  }
+
+  void _applyFilter() {
+    setState(() {
+      switch (_filter) {
+        case 'critical':
+          _repairs = _allRepairs
+              .where((r) => (r['priority'] ?? '').toString() == 'critical')
+              .toList();
+          break;
+        case 'in_progress':
+          _repairs = _allRepairs
+              .where((r) => (r['status'] ?? '').toString() == 'in_progress')
+              .toList();
+          break;
+        case 'resolved':
+          _repairs = _allRepairs
+              .where((r) => (r['status'] ?? '').toString() == 'resolved')
+              .toList();
+          break;
+        default:
+          _repairs = List.from(_allRepairs);
+      }
+    });
   }
 
   Color _priorityColor(String p) {
@@ -130,7 +141,7 @@ class _RepairsPageState extends State<RepairsPage> {
                 return Padding(
                   padding: const EdgeInsets.only(right: 10),
                   child: GestureDetector(
-                    onTap: () { setState(() => _filter = f); _load(); },
+                    onTap: () { setState(() => _filter = f); _applyFilter(); },
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 150),
                       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),

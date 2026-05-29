@@ -10,8 +10,20 @@ import '../bloc/inspection_state.dart';
 import '../../data/models/daily_check_model.dart';
 import '../../../dashboard/presentation/widgets/app_shell.dart';
 
-class DailyCheckHistoryPage extends StatelessWidget {
+class DailyCheckHistoryPage extends StatefulWidget {
   const DailyCheckHistoryPage({super.key});
+  @override State<DailyCheckHistoryPage> createState() => _DailyCheckHistoryPageState();
+}
+
+class _DailyCheckHistoryPageState extends State<DailyCheckHistoryPage> {
+  String _filter = 'all';
+
+  static const _filters = [
+    ('all',          'All'),
+    ('pass',         'Pass'),
+    ('minor_issue',  'Minor Issues'),
+    ('critical',     'Critical'),
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -31,39 +43,105 @@ class DailyCheckHistoryPage extends StatelessWidget {
           ),
           const SizedBox(width: 8),
         ],
-        child: BlocBuilder<InspectionBloc, InspectionState>(
-          builder: (context, state) {
-            if (state is InspectionLoading) {
-              return const Center(child: CircularProgressIndicator(color: AppTheme.accent, strokeWidth: 2));
-            }
-            if (state is InspectionHistoryLoaded) {
-              if (state.checks.isEmpty) {
-                return EmptyState(
-                  icon: Icons.checklist_outlined,
-                  title: 'No inspections yet',
-                  subtitle: 'Complete your pre-trip vehicle inspection.',
-                  action: ElevatedButton(
-                    onPressed: () => context.go('/driver/checks/add'),
-                    style: ElevatedButton.styleFrom(minimumSize: const Size(0, 36)),
-                    child: const Text('Start Inspection'),
-                  ),
-                );
-              }
-              return RListBody(
-                twoColumn: true,
-                onRefresh: () async {
-                  context.read<InspectionBloc>().add(InspectionHistoryRequested());
-                },
-                cards: state.checks.map((c) => _CheckCard(check: c)).toList(),
-              );
-            }
-            if (state is InspectionError) {
-              return Center(child: Text(state.message,
-                style: const TextStyle(color: AppTheme.rose)));
-            }
-            return const SizedBox();
-          },
-        ),
+        child: Column(children: [
+          // ── Filter bar ───────────────────────────────────────────────────
+          Container(
+            color: AppTheme.surface,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: _filters.map((f) {
+                  final active = _filter == f.$1;
+                  final color  = f.$1 == 'pass'        ? AppTheme.emerald
+                               : f.$1 == 'minor_issue' ? AppTheme.amber
+                               : f.$1 == 'critical'    ? AppTheme.rose
+                               : AppTheme.accent;
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: GestureDetector(
+                      onTap: () => setState(() => _filter = f.$1),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 160),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: active
+                              ? color.withValues(alpha: 0.12)
+                              : AppTheme.background,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: active
+                                ? color.withValues(alpha: 0.45)
+                                : AppTheme.border,
+                            width: active ? 1.0 : 0.5,
+                          ),
+                        ),
+                        child: Text(f.$2, style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: active ? FontWeight.w600 : FontWeight.w400,
+                          color: active ? color : AppTheme.textMuted,
+                        )),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ),
+
+          // ── List ─────────────────────────────────────────────────────────
+          Expanded(
+            child: BlocBuilder<InspectionBloc, InspectionState>(
+              builder: (context, state) {
+                if (state is InspectionLoading) {
+                  return const Center(child: CircularProgressIndicator(
+                      color: AppTheme.accent, strokeWidth: 2));
+                }
+                if (state is InspectionHistoryLoaded) {
+                  final filtered = _filter == 'all'
+                      ? state.checks
+                      : state.checks
+                          .where((c) => c.overallStatus == _filter)
+                          .toList();
+
+                  if (state.checks.isEmpty) {
+                    return EmptyState(
+                      icon: Icons.checklist_outlined,
+                      title: 'No inspections yet',
+                      subtitle: 'Complete your pre-trip vehicle inspection.',
+                      action: ElevatedButton(
+                        onPressed: () => context.go('/driver/checks/add'),
+                        style: ElevatedButton.styleFrom(minimumSize: const Size(0, 36)),
+                        child: const Text('Start Inspection'),
+                      ),
+                    );
+                  }
+
+                  if (filtered.isEmpty) {
+                    return EmptyState(
+                      icon: Icons.filter_list_outlined,
+                      title: 'No results',
+                      subtitle: 'No checks match the selected filter.',
+                    );
+                  }
+
+                  return RListBody(
+                    twoColumn: true,
+                    onRefresh: () async {
+                      context.read<InspectionBloc>().add(InspectionHistoryRequested());
+                    },
+                    cards: filtered.map((c) => _CheckCard(check: c)).toList(),
+                  );
+                }
+                if (state is InspectionError) {
+                  return Center(child: Text(state.message,
+                      style: const TextStyle(color: AppTheme.rose)));
+                }
+                return const SizedBox();
+              },
+            ),
+          ),
+        ]),
       ),
     );
   }

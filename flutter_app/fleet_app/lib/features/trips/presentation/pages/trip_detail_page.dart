@@ -1,10 +1,13 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/service_locator.dart';
 import '../../../../core/services/firestore_service.dart';
 import '../../../../core/services/notification_service.dart';
+import '../../../auth/presentation/bloc/auth_bloc.dart';
+import '../../../auth/presentation/bloc/auth_state.dart';
 import '../../data/trip_model.dart';
 
 class TripDetailPage extends StatefulWidget {
@@ -146,6 +149,9 @@ class _TripDetailPageState extends State<TripDetailPage> {
 
   @override
   Widget build(BuildContext context) {
+    final auth     = context.read<AuthBloc>().state;
+    final isDriver = auth is AuthAuthenticated && auth.user.role == 'driver';
+
     return Scaffold(
       backgroundColor: AppTheme.background,
       appBar: AppBar(
@@ -164,7 +170,7 @@ class _TripDetailPageState extends State<TripDetailPage> {
                 _load();
               },
             ),
-          if (_trip != null)
+          if (_trip != null && !isDriver)
             IconButton(
               icon: const Icon(Icons.delete_outline, size: 20, color: AppTheme.rose),
               tooltip: 'Delete trip',

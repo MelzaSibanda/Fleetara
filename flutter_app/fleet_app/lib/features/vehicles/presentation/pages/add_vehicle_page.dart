@@ -24,6 +24,7 @@ class _AddVehiclePageState extends State<AddVehiclePage> {
   final _licenseCtrl   = TextEditingController();
   final _insuranceCtrl = TextEditingController();
   final _serviceKmCtrl = TextEditingController();
+  final _descCtrl      = TextEditingController();
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
@@ -44,6 +45,7 @@ class _AddVehiclePageState extends State<AddVehiclePage> {
         'insurance_expiry':     _insuranceCtrl.text.trim(),
         'service_interval_km':  serviceKm,
         'next_service_km':      nextService,
+        'description':          _descCtrl.text.trim(),
         'status':               'active',
         'created_at':           DateTime.now().toIso8601String(),
       });
@@ -91,6 +93,7 @@ class _AddVehiclePageState extends State<AddVehiclePage> {
               _field(_licenseCtrl,   'License expiry',        'YYYY-MM-DD'),
               _field(_insuranceCtrl, 'Insurance expiry',      'YYYY-MM-DD'),
               _field(_serviceKmCtrl, 'Service interval (km)', 'e.g. 20000', isNum: true),
+              _descField(),
               const SizedBox(height: 32),
               ElevatedButton(
                 onPressed: _loading ? null : _submit,
@@ -106,6 +109,14 @@ class _AddVehiclePageState extends State<AddVehiclePage> {
     );
   }
 
+  @override
+  void dispose() {
+    _regCtrl.dispose(); _makeCtrl.dispose(); _modelCtrl.dispose();
+    _yearCtrl.dispose(); _odomCtrl.dispose(); _licenseCtrl.dispose();
+    _insuranceCtrl.dispose(); _serviceKmCtrl.dispose(); _descCtrl.dispose();
+    super.dispose();
+  }
+
   Widget _field(TextEditingController ctrl, String label, String hint, {bool isNum = false}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
@@ -114,6 +125,21 @@ class _AddVehiclePageState extends State<AddVehiclePage> {
         keyboardType: isNum ? TextInputType.number : TextInputType.text,
         decoration: InputDecoration(labelText: label, hintText: hint),
         validator: (v) => v == null || v.isEmpty ? 'Required' : null,
+      ),
+    );
+  }
+
+  Widget _descField() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: TextFormField(
+        controller: _descCtrl,
+        maxLines: 4,
+        decoration: const InputDecoration(
+          labelText: 'Description',
+          hintText: 'Optional notes about this vehicle',
+          alignLabelWithHint: true,
+        ),
       ),
     );
   }
