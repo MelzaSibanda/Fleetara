@@ -175,11 +175,16 @@ class _RepairsPageState extends State<RepairsPage> {
             : _repairs.isEmpty
               ? EmptyState(
                   icon: Icons.build_outlined,
-                  title: 'No repairs reported',
-                  subtitle: 'Use "Report issue" to log a breakdown or repair.',
-                  action: OutlinedButton(
+                  title: _filter == 'in_progress' ? 'No in progress repairs'
+                       : _filter == 'resolved'    ? 'No resolved repairs'
+                       : _filter == 'critical'    ? 'No critical repairs'
+                       : 'No repairs reported',
+                  subtitle: _filter == 'all'
+                      ? 'Use "Report issue" to log a breakdown or repair.'
+                      : 'No repairs match this filter.',
+                  action: _filter == 'all' ? OutlinedButton(
                     onPressed: () => context.go('/repairs/add'),
-                    child: const Text('Report issue')),
+                    child: const Text('Report issue')) : null,
                 )
               : RefreshIndicator(
                   color: AppTheme.primary,
