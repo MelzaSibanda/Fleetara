@@ -12,9 +12,10 @@ class DailyChecksPage extends StatefulWidget {
 }
 
 class _DailyChecksPageState extends State<DailyChecksPage> {
-  List   _checks  = [];
-  bool   _loading = true;
-  String _filter  = 'all';
+  List   _checks    = [];
+  List   _allChecks = [];
+  bool   _loading   = true;
+  String _filter    = 'all';
   final _fs = sl<FirestoreService>();
 
   static const _filters = ['all', 'pass', 'minor_issue', 'critical'];
@@ -25,14 +26,26 @@ class _DailyChecksPageState extends State<DailyChecksPage> {
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
-      final snap = _filter == 'all'
-          ? await _fs.db.collection('daily_checks')
-              .orderBy('check_date', descending: true).get()
-          : await _fs.db.collection('daily_checks')
-              .where('overall_status', isEqualTo: _filter)
-              .orderBy('check_date', descending: true).get();
-      setState(() { _checks = _fs.docsToList(snap); _loading = false; });
+      final snap = await _fs.db.collection('daily_checks').get();
+      _allChecks = _fs.docsToList(snap)
+        ..sort((a, b) {
+          final da = (a['check_date'] ?? '').toString();
+          final db = (b['check_date'] ?? '').toString();
+          return db.compareTo(da);
+        });
+      _applyFilter();
+      setState(() => _loading = false);
     } catch (_) { setState(() => _loading = false); }
+  }
+
+  void _applyFilter() {
+    setState(() {
+      _checks = _filter == 'all'
+          ? List.from(_allChecks)
+          : _allChecks
+              .where((c) => (c['overall_status'] ?? '') == _filter)
+              .toList();
+    });
   }
 
   Color _statusColor(String s) {
@@ -89,7 +102,7 @@ class _DailyChecksPageState extends State<DailyChecksPage> {
               return Padding(
                 padding: const EdgeInsets.only(right: 8),
                 child: GestureDetector(
-                  onTap: () { setState(() => _filter = f); _load(); },
+                  onTap: () { setState(() => _filter = f); _applyFilter(); },
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 160),
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),

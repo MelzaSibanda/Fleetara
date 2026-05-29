@@ -24,6 +24,7 @@ import '../../features/invoices/presentation/pages/statement_generator_page.dart
 import '../../features/invoices/presentation/pages/statement_preview_page.dart';
 import '../../features/tyres/presentation/pages/tyres_page.dart';
 import '../../features/services/presentation/pages/services_page.dart';
+import '../../features/services/presentation/pages/add_service_page.dart';
 import '../../features/daily_checks/presentation/pages/daily_checks_page.dart';
 import '../../features/driver/presentation/pages/daily_check_form_page.dart';
 import '../../features/driver/presentation/pages/daily_check_history_page.dart';
@@ -112,6 +113,7 @@ GoRouter buildRouter(AuthBloc authBloc, ChangeNotifier refreshListenable) {
       ),
       GoRoute(path: '/tyres',            builder: (_, __) => const TyresPage()),
       GoRoute(path: '/services',         builder: (_, __) => const ServicesPage()),
+      GoRoute(path: '/services/add',     builder: (_, __) => const AddServicePage()),
       GoRoute(path: '/daily-checks',     builder: (_, __) => const DailyChecksPage()),
       GoRoute(path: '/daily-checks/add', builder: (_, __) => const DailyCheckFormPage()),
       GoRoute(path: '/driver/trips',      builder: (_, __) => const DriverTripsPage()),

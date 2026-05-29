@@ -87,6 +87,7 @@ class AppShell extends StatelessWidget {
     }
     if (role == 'fleet_manager') {
       return [
+        _NavItem('/dashboard',    Icons.home_outlined,                 'Home'),
         _NavItem('/vehicles',     Icons.local_shipping_outlined,       'Vehicles'),
         _NavItem('/trips',        Icons.route_outlined,                'Trips'),
         _NavItem('/daily-checks', Icons.assignment_turned_in_outlined, 'Daily Checks'),

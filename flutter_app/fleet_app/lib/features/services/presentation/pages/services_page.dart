@@ -12,9 +12,10 @@ class ServicesPage extends StatefulWidget {
 }
 
 class _ServicesPageState extends State<ServicesPage> {
-  List   _services = [];
-  bool   _loading  = true;
-  String _filter   = 'all';
+  List   _services    = [];
+  List   _allServices = [];
+  bool   _loading     = true;
+  String _filter      = 'all';
   final _fs = sl<FirestoreService>();
 
   @override
@@ -23,14 +24,26 @@ class _ServicesPageState extends State<ServicesPage> {
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
-      final snap = _filter == 'all'
-          ? await _fs.db.collection('vehicle_services')
-              .orderBy('scheduled_date', descending: true).get()
-          : await _fs.db.collection('vehicle_services')
-              .where('status', isEqualTo: _filter)
-              .orderBy('scheduled_date', descending: true).get();
-      setState(() { _services = _fs.docsToList(snap); _loading = false; });
+      final snap = await _fs.db.collection('vehicle_services').get();
+      _allServices = _fs.docsToList(snap)
+        ..sort((a, b) {
+          final da = (a['scheduled_date'] ?? '').toString();
+          final db = (b['scheduled_date'] ?? '').toString();
+          return db.compareTo(da);
+        });
+      _applyFilter();
+      setState(() => _loading = false);
     } catch (_) { setState(() => _loading = false); }
+  }
+
+  void _applyFilter() {
+    setState(() {
+      _services = _filter == 'all'
+          ? List.from(_allServices)
+          : _allServices
+              .where((s) => (s['status'] ?? '') == _filter)
+              .toList();
+    });
   }
 
   Color _statusColor(String s) {
@@ -67,11 +80,15 @@ class _ServicesPageState extends State<ServicesPage> {
     return AppShell(
       title: 'Services',
       actions: [
-        TextButton.icon(
-          onPressed: () => context.go('/services/upcoming'),
-          icon: const Icon(Icons.schedule, size: 16, color: AppTheme.amber),
-          label: const Text('Upcoming', style: TextStyle(color: AppTheme.amber, fontSize: 12)),
+        ElevatedButton.icon(
+          onPressed: () async { await context.push('/services/add'); _load(); },
+          icon: const Icon(Icons.add, size: 16, color: Colors.white),
+          label: const Text('Log Service', style: TextStyle(color: Colors.white)),
+          style: ElevatedButton.styleFrom(
+            minimumSize: const Size(0, 32),
+            padding: const EdgeInsets.symmetric(horizontal: 14)),
         ),
+        const SizedBox(width: 8),
       ],
       child: Column(children: [
         Container(
@@ -84,7 +101,7 @@ class _ServicesPageState extends State<ServicesPage> {
                 Padding(
                   padding: const EdgeInsets.only(right: 8),
                   child: GestureDetector(
-                    onTap: () { setState(() => _filter = f); _load(); },
+                    onTap: () { setState(() => _filter = f); _applyFilter(); },
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(

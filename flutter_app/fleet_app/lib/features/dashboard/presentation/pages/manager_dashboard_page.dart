@@ -134,13 +134,15 @@ class _ManagerDashboardPageState extends State<ManagerDashboardPage> {
                       child: CircularProgressIndicator(color: AppTheme.accent)))
                   else ...[
                     // ── KPI cards ─────────────────────────────────────────
-                    GridView.count(
-                      crossAxisCount: Responsive.kpiColumns(context),
+                    GridView(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 12,
-                      childAspectRatio: isMobile ? 1.45 : 1.55,
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: Responsive.kpiColumns(context),
+                        crossAxisSpacing: 12,
+                        mainAxisSpacing: 12,
+                        mainAxisExtent: 170,
+                      ),
                       children: [
                         StatCard(
                           label: 'Total Vehicles',
