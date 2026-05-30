@@ -404,18 +404,18 @@ class _FinanceSummaryCard extends StatelessWidget {
         ]),
         SizedBox(height: isMobile ? 14 : 20),
 
-        // Stats
-        isMobile
-          ? Wrap(spacing: 0, runSpacing: 12, children: [
-              _FinanceStat(label: 'Total Revenue',  value: loading ? '…' : revenue,     color: AppTheme.emerald),
-              _FinanceStat(label: 'Expenses',       value: loading ? '…' : expenses,    color: AppTheme.rose),
-              _FinanceStat(label: 'Outstanding',    value: loading ? '…' : outstanding, color: AppTheme.amber),
-            ])
-          : Row(children: [
-              Expanded(child: _FinanceStat(label: 'Total Revenue',  value: loading ? '…' : revenue,     color: AppTheme.emerald)),
-              Expanded(child: _FinanceStat(label: 'Expenses',       value: loading ? '…' : expenses,    color: AppTheme.rose)),
-              Expanded(child: _FinanceStat(label: 'Outstanding',    value: loading ? '…' : outstanding, color: AppTheme.amber)),
-            ]),
+        // Stats — always 3 equal columns, font shrinks on mobile
+        Row(children: [
+          Expanded(child: _FinanceStat(
+            label: 'Revenue',     value: loading ? '…' : revenue,
+            color: AppTheme.emerald, small: isMobile)),
+          Expanded(child: _FinanceStat(
+            label: 'Expenses',    value: loading ? '…' : expenses,
+            color: AppTheme.rose,    small: isMobile)),
+          Expanded(child: _FinanceStat(
+            label: 'Outstanding', value: loading ? '…' : outstanding,
+            color: AppTheme.amber,   small: isMobile)),
+        ]),
         SizedBox(height: isMobile ? 16 : 20),
 
         // Quick actions
@@ -435,7 +435,9 @@ class _FinanceSummaryCard extends StatelessWidget {
 class _FinanceStat extends StatelessWidget {
   final String label, value;
   final Color  color;
-  const _FinanceStat({required this.label, required this.value, required this.color});
+  final bool   small;
+  const _FinanceStat({required this.label, required this.value,
+    required this.color, this.small = false});
 
   @override
   Widget build(BuildContext context) => Column(
@@ -444,12 +446,16 @@ class _FinanceStat extends StatelessWidget {
       Row(mainAxisSize: MainAxisSize.min, children: [
         Container(width: 6, height: 6,
           decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-        const SizedBox(width: 6),
-        Text(label, style: const TextStyle(fontSize: 10, color: Colors.white60)),
+        const SizedBox(width: 5),
+        Flexible(child: Text(label, overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 10, color: Colors.white60))),
       ]),
-      const SizedBox(height: 5),
-      Text(value, style: const TextStyle(
-        fontSize: 18, fontWeight: FontWeight.w700, color: Colors.white)),
+      const SizedBox(height: 4),
+      Text(value,
+        style: TextStyle(
+          fontSize: small ? 14 : 18,
+          fontWeight: FontWeight.w700,
+          color: Colors.white)),
     ],
   );
 }
@@ -696,16 +702,19 @@ class _AlertsCard extends StatelessWidget {
             type:    AlertType.danger))),
 
       const SizedBox(height: 10),
-      Row(children: [
-        _AlertAction(label: 'Vehicles', icon: Icons.local_shipping_outlined,
-          onTap: () => context.go('/vehicles')),
-        const SizedBox(width: 8),
-        _AlertAction(label: 'Repairs',  icon: Icons.handyman_outlined,
-          onTap: () => context.go('/repairs')),
-        const SizedBox(width: 8),
-        _AlertAction(label: 'Invoices', icon: Icons.receipt_long_outlined,
-          onTap: () => context.go('/invoices')),
-      ]),
+      LayoutBuilder(builder: (ctx, box) {
+        // Use Expanded Row on all sizes — each action gets equal space
+        return Row(children: [
+          _AlertAction(label: 'Vehicles', icon: Icons.local_shipping_outlined,
+            onTap: () => context.go('/vehicles')),
+          const SizedBox(width: 8),
+          _AlertAction(label: 'Repairs',  icon: Icons.handyman_outlined,
+            onTap: () => context.go('/repairs')),
+          const SizedBox(width: 8),
+          _AlertAction(label: 'Invoices', icon: Icons.receipt_long_outlined,
+            onTap: () => context.go('/invoices')),
+        ]);
+      }),
     ]),
   );
 }
