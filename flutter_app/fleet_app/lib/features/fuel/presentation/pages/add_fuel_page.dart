@@ -63,22 +63,52 @@ class _AddFuelPageState extends State<AddFuelPage> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _loading = true);
     try {
+      final fbUser     = FirebaseAuth.instance.currentUser;
+      final driverUid  = fbUser?.uid ?? '';
+      String driverName = fbUser?.displayName ?? '';
+      if (driverName.isEmpty && driverUid.isNotEmpty) {
+        try {
+          final doc = await _fs.db.collection('users').doc(driverUid).get();
+          if (doc.exists) {
+            final d = doc.data() as Map<String, dynamic>;
+            driverName = d['full_name'] ?? d['first_name'] ?? '';
+          }
+        } catch (_) {}
+      }
+
+      // Find driver's current active trip
+      String activeTripId = '';
+      if (driverUid.isNotEmpty) {
+        try {
+          final tripSnap = await _fs.db.collection('trips')
+              .where('driver_id', isEqualTo: driverUid)
+              .where('status', isEqualTo: 'in_progress')
+              .limit(1).get();
+          if (tripSnap.docs.isNotEmpty) {
+            activeTripId = tripSnap.docs.first.id;
+          }
+        } catch (_) {}
+      }
+
       await _fs.db.collection('fuel_entries').add({
-        'horse_id':            _selectedHorse,
+        'horse_id':             _selectedHorse,
         'vehicle_registration': _selectedHorseReg ?? '',
-        'fuel_type':           _fuelType,
-        'liters':              double.parse(_litersCtrl.text),
-        'cost':                double.parse(_costCtrl.text),
-        'odometer':            int.parse(_odomCtrl.text),
-        'fuel_station':        _stationCtrl.text.trim(),
-        'location':            _locationCtrl.text.trim(),
-        'created_at':          DateTime.now().toIso8601String(),
+        'fuel_type':            _fuelType,
+        'liters':               double.parse(_litersCtrl.text),
+        'cost':                 double.parse(_costCtrl.text),
+        'odometer':             int.parse(_odomCtrl.text),
+        'fuel_station':         _stationCtrl.text.trim(),
+        'location':             _locationCtrl.text.trim(),
+        'driver_id':            driverUid,
+        'driver_name':          driverName,
+        'trip_id':              activeTripId,
+        'created_at':           DateTime.now().toIso8601String(),
       });
 
       final reg     = _selectedHorseReg ?? '';
       final liters  = _litersCtrl.text;
       final station = _stationCtrl.text.trim();
-      final actor   = FirebaseAuth.instance.currentUser?.displayName ?? '';
+      final actor   = driverName;
       unawaited(sl<NotificationService>().sendToManagers(
         'fuel', 'Fuel logged',
         '${reg.isNotEmpty ? reg : 'Vehicle'} — ${liters}L'

@@ -6,6 +6,7 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/responsive.dart';
 import '../../../../core/utils/service_locator.dart';
 import '../../../../core/services/firestore_service.dart';
+import '../../../../core/services/compliance_service.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../auth/presentation/bloc/auth_state.dart';
 import '../widgets/app_shell.dart';
@@ -25,7 +26,8 @@ class _Stats {
   final double totalExpenses;
   final double outstanding;
   final int    openAlerts;
-  final List<Map<String, dynamic>> alertItems;
+  final List<Map<String, dynamic>>  alertItems;
+  final List<ComplianceAlert>       complianceAlerts;
 
   const _Stats({
     required this.activeTrips,
@@ -39,6 +41,7 @@ class _Stats {
     required this.outstanding,
     required this.openAlerts,
     required this.alertItems,
+    required this.complianceAlerts,
   });
 }
 
@@ -87,38 +90,38 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
       final tripCount     = math.min(onTripIds.length, totalVehicles - mntCount).clamp(0, totalVehicles);
       final availCount    = (totalVehicles - mntCount - tripCount).clamp(0, totalVehicles);
 
-      // ── Invoices ───────────────────────────────────────────────────────────
+      // ── Invoices — same logic as finance page ──────────────────────────────
       final invoices = _fs.docsToList(results[2]);
-      double totalRev = 0, revMtd = 0, outstanding = 0;
+      double totalRev = 0, revMtd = 0, outstanding = 0, totalExp = 0;
       for (final inv in invoices) {
-        final sub    = (inv['subtotal']    as num?)?.toDouble() ?? 0;
-        final tax    = (inv['tax_percent'] as num?)?.toDouble() ?? 0;
-        final total  = sub * (1 + tax / 100);
+        final total  = double.tryParse(inv['total']?.toString() ?? '0') ?? 0;
         final status = inv['status']?.toString() ?? '';
+        final type   = inv['invoice_type']?.toString() ?? '';
         final date   = inv['issue_date']?.toString() ?? '';
-        if (status == 'paid') {
-          totalRev += total;
-          if (date.startsWith(mPfx)) revMtd += total;
-        } else if (status == 'pending' || status == 'sent' || status == 'overdue') {
-          outstanding += total;
+
+        if (type == 'receivable') {
+          if (status == 'paid') {
+            totalRev += total;
+            if (date.startsWith(mPfx)) revMtd += total;
+          }
+          if (status != 'paid' && status != 'cancelled') {
+            outstanding += total;
+          }
+        } else if (type == 'payable' && status == 'paid') {
+          totalExp += total;
         }
       }
 
-      // ── Expenses ───────────────────────────────────────────────────────────
-      double fuelExp = 0;
-      for (final e in _fs.docsToList(results[3])) {
-        fuelExp += (e['cost'] as num?)?.toDouble() ?? 0;
-      }
-
-      double repairExp = 0;
+      // ── Critical open repairs ──────────────────────────────────────────────
       final allRepairs = _fs.docsToList(results[4]);
-      for (final r in allRepairs) {
-        repairExp += (r['repair_cost'] as num?)?.toDouble() ?? 0;
-      }
-
-      // ── Critical open alerts ───────────────────────────────────────────────
-      final criticals = allRepairs.where((r) =>
+      final criticals  = allRepairs.where((r) =>
           r['priority'] == 'critical' && r['status'] != 'resolved').toList();
+
+      // ── Compliance alerts ──────────────────────────────────────────────────
+      List<ComplianceAlert> complianceAlerts = [];
+      try {
+        complianceAlerts = await sl<ComplianceService>().checkAll();
+      } catch (_) {}
 
       setState(() {
         _stats = _Stats(
@@ -129,10 +132,11 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
           maintenanceVehicles: mntCount,
           totalRevenue:        totalRev,
           revenueMtd:          revMtd,
-          totalExpenses:       fuelExp + repairExp,
+          totalExpenses:       totalExp,
           outstanding:         outstanding,
           openAlerts:          criticals.length,
           alertItems:          criticals.take(5).toList(),
+          complianceAlerts:    complianceAlerts,
         );
         _loading = false;
       });
@@ -310,6 +314,12 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
                           ]),
 
                       const SizedBox(height: 16),
+
+                      // ── Compliance alerts ─────────────────────────────────
+                      if (!_loading && (s?.complianceAlerts.isNotEmpty ?? false)) ...[
+                        _ComplianceCard(alerts: s!.complianceAlerts),
+                        const SizedBox(height: 16),
+                      ],
                     ],
                   ),
                 ),
@@ -743,5 +753,91 @@ class _AlertAction extends StatelessWidget {
         ]),
       ),
     ),
+  );
+}
+
+// ── Compliance alerts card ─────────────────────────────────────────────────────
+
+class _ComplianceCard extends StatelessWidget {
+  final List<ComplianceAlert> alerts;
+  const _ComplianceCard({required this.alerts});
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(18),
+    decoration: BoxDecoration(
+      color: AppTheme.surface,
+      borderRadius: BorderRadius.circular(14),
+      border: Border.all(color: AppTheme.border, width: 0.5),
+      boxShadow: const [
+        BoxShadow(color: Color(0x081E3A72), blurRadius: 16, offset: Offset(0, 4)),
+      ],
+    ),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Container(
+          width: 32, height: 32,
+          decoration: BoxDecoration(
+            color: AppTheme.rose.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(8)),
+          child: const Icon(Icons.shield_outlined,
+            color: AppTheme.rose, size: 16),
+        ),
+        const SizedBox(width: 10),
+        const Text('Compliance Alerts',
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700,
+            color: AppTheme.textPrimary)),
+        const Spacer(),
+        GestureDetector(
+          onTap: () => context.go('/vehicles'),
+          child: const Text('View fleet',
+            style: TextStyle(fontSize: 12, color: AppTheme.accent,
+              fontWeight: FontWeight.w500)),
+        ),
+      ]),
+      const SizedBox(height: 14),
+      ...alerts.take(5).map((a) => Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: a.color.withValues(alpha: 0.05),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: a.color.withValues(alpha: 0.20))),
+          child: Row(children: [
+            Icon(a.icon, size: 15, color: a.color),
+            const SizedBox(width: 10),
+            Expanded(child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('${a.vehicleReg}  ·  ${a.typeLabel}',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600,
+                    color: a.color)),
+                const SizedBox(height: 2),
+                Text(a.message, style: const TextStyle(
+                  fontSize: 11, color: AppTheme.textMuted)),
+              ],
+            )),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: a.color.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(20)),
+              child: Text(
+                a.severity == 'expired' ? 'EXPIRED'
+                  : a.severity == 'critical' ? 'CRITICAL'
+                  : a.severity == 'warning' ? 'WARNING' : 'INFO',
+                style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700,
+                  color: a.color)),
+            ),
+          ]),
+        ),
+      )),
+      if (alerts.length > 5) ...[
+        const SizedBox(height: 4),
+        Text('+${alerts.length - 5} more alert${alerts.length - 5 == 1 ? '' : 's'}',
+          style: const TextStyle(fontSize: 12, color: AppTheme.textMuted)),
+      ],
+    ]),
   );
 }

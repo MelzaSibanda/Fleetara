@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/utils/service_locator.dart';
+import '../../../../core/services/compliance_service.dart';
 import '../../../dashboard/presentation/widgets/app_shell.dart';
 import '../../../../core/utils/responsive.dart';
 import '../bloc/vehicle_bloc.dart';
@@ -285,12 +287,92 @@ class _DataCell extends StatelessWidget {
   );
 }
 
-class _AlertsTab extends StatelessWidget {
+class _AlertsTab extends StatefulWidget {
   const _AlertsTab();
+  @override State<_AlertsTab> createState() => _AlertsTabState();
+}
+
+class _AlertsTabState extends State<_AlertsTab> {
+  List<ComplianceAlert> _alerts  = [];
+  bool                  _loading = true;
+
   @override
-  Widget build(BuildContext context) => const EmptyState(
-    icon: Icons.notifications_none_outlined,
-    title: 'No vehicle alerts',
-    subtitle: 'Licence, insurance, and service alerts will appear here.',
-  );
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    try {
+      final alerts = await sl<ComplianceService>().checkAll();
+      setState(() { _alerts = alerts; _loading = false; });
+    } catch (_) { setState(() => _loading = false); }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator(
+        color: AppTheme.accent, strokeWidth: 2));
+    }
+    if (_alerts.isEmpty) {
+      return const EmptyState(
+        icon: Icons.check_circle_outline,
+        title: 'All clear',
+        subtitle: 'No licence, insurance, or service alerts.',
+      );
+    }
+    return RefreshIndicator(
+      color: AppTheme.accent,
+      onRefresh: _load,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: _alerts.length,
+        itemBuilder: (_, i) {
+          final a = _alerts[i];
+          return Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AppTheme.surface,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: a.color.withValues(alpha: 0.25), width: 0.8)),
+            child: Row(children: [
+              Container(
+                width: 38, height: 38,
+                decoration: BoxDecoration(
+                  color: a.color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(9)),
+                child: Icon(a.icon, color: a.color, size: 18),
+              ),
+              const SizedBox(width: 12),
+              Expanded(child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [
+                    Text(a.vehicleReg, style: const TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w600,
+                      color: AppTheme.textPrimary)),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 7, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: a.color.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(20)),
+                      child: Text(a.typeLabel, style: TextStyle(
+                        fontSize: 10, fontWeight: FontWeight.w600,
+                        color: a.color)),
+                    ),
+                  ]),
+                  const SizedBox(height: 3),
+                  Text(a.message, style: const TextStyle(
+                    fontSize: 11, color: AppTheme.textMuted)),
+                ],
+              )),
+            ]),
+          );
+        },
+      ),
+    );
+  }
 }

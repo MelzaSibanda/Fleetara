@@ -7,6 +7,7 @@ import '../../features/driver/presentation/bloc/inspection_bloc.dart';
 import '../../features/vehicles/presentation/bloc/vehicle_bloc.dart';
 import '../services/firestore_service.dart';
 import '../services/notification_service.dart';
+import '../services/compliance_service.dart';
 
 final GetIt sl = GetIt.instance;
 
@@ -15,6 +16,9 @@ void setupServiceLocator() {
   sl.registerLazySingleton<FirestoreService>(() => FirestoreService());
   sl.registerLazySingleton<NotificationService>(
     () => NotificationService(sl<FirestoreService>()),
+  );
+  sl.registerLazySingleton<ComplianceService>(
+    () => ComplianceService(sl<FirestoreService>()),
   );
   // Auth
   sl.registerLazySingleton<AuthRemoteDataSource>(
