@@ -25,6 +25,7 @@ import '../../features/invoices/presentation/pages/statement_preview_page.dart';
 import '../../features/tyres/presentation/pages/tyres_page.dart';
 import '../../features/services/presentation/pages/services_page.dart';
 import '../../features/services/presentation/pages/add_service_page.dart';
+import '../../features/trips/presentation/pages/log_delay_page.dart';
 import '../../features/daily_checks/presentation/pages/daily_checks_page.dart';
 import '../../features/driver/presentation/pages/daily_check_form_page.dart';
 import '../../features/driver/presentation/pages/daily_check_history_page.dart';
@@ -87,6 +88,13 @@ GoRouter buildRouter(AuthBloc authBloc, ChangeNotifier refreshListenable) {
         path: '/trips/:id/edit',
         builder: (_, state) => EditTripPage(
           trip: state.extra as TripModel),
+      ),
+      GoRoute(
+        path: '/trips/:id/delay',
+        builder: (_, state) => LogDelayPage(
+          tripId:    state.pathParameters['id']!,
+          tripRoute: (state.extra as String?) ?? '',
+        ),
       ),
       GoRoute(path: '/fuel',             builder: (_, __) => const FuelPage()),
       GoRoute(path: '/fuel/add',         builder: (_, __) => const AddFuelPage()),

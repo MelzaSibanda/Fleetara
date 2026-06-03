@@ -22,6 +22,27 @@ class _AddServicePageState extends State<AddServicePage> {
 
   String _serviceType = 'oil_change';
   String _status      = 'scheduled';
+  final Map<String, bool> _checklist = {};
+
+  static const Map<String, List<String>> _checklistItems = {
+    'oil_change':    ['Drain old oil', 'Replace oil filter', 'Fill new oil', 'Check oil pressure', 'Check for leaks'],
+    'minor_service': ['Oil & filter change', 'Air filter check', 'Tyre pressure check', 'Lights check', 'Wiper fluid', 'Brakes visual check', 'Battery check'],
+    'major_service': ['Oil & filter change', 'Air filter replace', 'Fuel filter check', 'Tyre pressure & condition', 'Brake pads & fluid', 'Suspension check', 'Cooling system', 'Transmission fluid', 'Battery & electrics', 'Exhaust inspection', 'Steering check', 'Full lights check'],
+    'brake_service': ['Brake pad thickness', 'Brake fluid level', 'Brake lines inspection', 'Disc/drum condition', 'Brake calliper check', 'Handbrake adjustment'],
+    'tyre_rotation': ['FL position', 'FR position', 'R1L position', 'R1R position', 'R2L position', 'R2R position', 'Tyre pressure set', 'Visual damage check'],
+    'inspection':    ['Lights & indicators', 'Brakes', 'Tyres & wheels', 'Suspension & steering', 'Engine compartment', 'Electrical systems', 'Exhaust', 'Body & frame'],
+    'other':         ['Item checked', 'Repair completed', 'Parts replaced', 'Test drive done'],
+  };
+
+  List<String> get _currentChecklist =>
+      _checklistItems[_serviceType] ?? _checklistItems['other']!;
+
+  void _initChecklist() {
+    _checklist.clear();
+    for (final item in _currentChecklist) {
+      _checklist[item] = false;
+    }
+  }
 
   final _workshopCtrl  = TextEditingController();
   final _odomCtrl      = TextEditingController();
@@ -46,7 +67,7 @@ class _AddServicePageState extends State<AddServicePage> {
   ];
 
   @override
-  void initState() { super.initState(); _fetchVehicles(); }
+  void initState() { super.initState(); _initChecklist(); _fetchVehicles(); }
 
   @override
   void dispose() {
@@ -91,17 +112,25 @@ class _AddServicePageState extends State<AddServicePage> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _loading = true);
     try {
+      final checklistData = _checklist.entries
+          .map((e) => {'item': e.key, 'checked': e.value})
+          .toList();
+      final checklistComplete = _checklist.isNotEmpty &&
+          _checklist.values.every((v) => v);
+
       await _fs.db.collection('vehicle_services').add({
-        'vehicle_id':           _selectedVehicleId,
-        'vehicle_reg':          _selectedVehicleReg,
-        'service_type':         _serviceType,
-        'status':               _status,
-        'scheduled_date':       _dateCtrl.text.trim(),
-        'workshop_name':        _workshopCtrl.text.trim(),
-        'odometer_at_service':  int.tryParse(_odomCtrl.text.trim()) ?? 0,
-        'total_cost':           double.tryParse(_costCtrl.text.trim()) ?? 0,
-        'notes':                _notesCtrl.text.trim(),
-        'created_at':           DateTime.now().toIso8601String(),
+        'vehicle_id':          _selectedVehicleId,
+        'vehicle_reg':         _selectedVehicleReg,
+        'service_type':        _serviceType,
+        'status':              _status,
+        'scheduled_date':      _dateCtrl.text.trim(),
+        'workshop_name':       _workshopCtrl.text.trim(),
+        'odometer_at_service': int.tryParse(_odomCtrl.text.trim()) ?? 0,
+        'total_cost':          double.tryParse(_costCtrl.text.trim()) ?? 0,
+        'notes':               _notesCtrl.text.trim(),
+        'checklist_items':     checklistData,
+        'checklist_complete':  checklistComplete,
+        'created_at':          DateTime.now().toIso8601String(),
       });
 
       if (mounted) {
@@ -184,7 +213,10 @@ class _AddServicePageState extends State<AddServicePage> {
                           isExpanded: true,
                           items: _serviceTypes.map((t) => DropdownMenuItem(
                             value: t.$1, child: Text(t.$2))).toList(),
-                          onChanged: (v) => setState(() => _serviceType = v!),
+                          onChanged: (v) => setState(() {
+                            _serviceType = v!;
+                            _initChecklist();
+                          }),
                         ),
                       ),
 
@@ -236,7 +268,60 @@ class _AddServicePageState extends State<AddServicePage> {
                         ),
                       ),
 
-                      const SizedBox(height: 8),
+                      // ── Service checklist ────────────────────────────────
+                      _section('Service checklist'),
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: AppTheme.background,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppTheme.border, width: 0.6)),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(children: [
+                              const Icon(Icons.checklist_outlined,
+                                size: 15, color: AppTheme.textMuted),
+                              const SizedBox(width: 6),
+                              Text(
+                                '${_checklist.values.where((v) => v).length} / ${_checklist.length} items',
+                                style: const TextStyle(
+                                  fontSize: 12, color: AppTheme.textMuted)),
+                              const Spacer(),
+                              if (_checklist.values.every((v) => v) &&
+                                  _checklist.isNotEmpty)
+                                const Row(mainAxisSize: MainAxisSize.min, children: [
+                                  Icon(Icons.check_circle,
+                                    size: 14, color: AppTheme.emerald),
+                                  SizedBox(width: 4),
+                                  Text('Complete', style: TextStyle(
+                                    fontSize: 11, fontWeight: FontWeight.w600,
+                                    color: AppTheme.emerald)),
+                                ]),
+                            ]),
+                            const SizedBox(height: 10),
+                            ..._currentChecklist.map((item) => CheckboxListTile(
+                              contentPadding: EdgeInsets.zero,
+                              dense: true,
+                              title: Text(item,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: (_checklist[item] ?? false)
+                                      ? AppTheme.textMuted
+                                      : AppTheme.textPrimary,
+                                  decoration: (_checklist[item] ?? false)
+                                      ? TextDecoration.lineThrough
+                                      : null)),
+                              value: _checklist[item] ?? false,
+                              activeColor: AppTheme.emerald,
+                              onChanged: (v) =>
+                                  setState(() => _checklist[item] = v ?? false),
+                            )),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+
                       ElevatedButton(
                         onPressed: _loading ? null : _submit,
                         child: _loading

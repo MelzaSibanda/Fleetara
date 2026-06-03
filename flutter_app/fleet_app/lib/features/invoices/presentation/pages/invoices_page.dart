@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/service_locator.dart';
 import '../../../../core/services/firestore_service.dart';
 import '../../../../core/utils/responsive.dart';
+import '../../../auth/presentation/bloc/auth_bloc.dart';
+import '../../../auth/presentation/bloc/auth_state.dart';
 import '../../../dashboard/presentation/widgets/app_shell.dart';
 
 class InvoicesPage extends StatefulWidget {
@@ -65,19 +68,109 @@ class _InvoicesPageState extends State<InvoicesPage> {
 
   Color _statusColor(String s) {
     switch (s) {
-      case 'paid':      return AppTheme.emerald;
-      case 'overdue':   return AppTheme.rose;
-      case 'sent':      return AppTheme.accent;
-      case 'cancelled': return AppTheme.textMuted;
-      default:          return AppTheme.amber;
+      case 'paid':             return AppTheme.emerald;
+      case 'approved':         return AppTheme.emerald;
+      case 'overdue':          return AppTheme.rose;
+      case 'sent':             return AppTheme.accent;
+      case 'cancelled':        return AppTheme.textMuted;
+      case 'pending_approval': return AppTheme.amber;
+      default:                 return AppTheme.amber;
     }
   }
 
   String _filterLabel(String f) =>
     f == 'all' ? 'All' : '${f[0].toUpperCase()}${f.substring(1)}';
 
+  Future<void> _approveInvoice(BuildContext context, String invoiceId) async {
+    final ctrl = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        title: const Text('Approve payment',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Text('Type APPROVE to confirm release of funds.',
+            style: TextStyle(fontSize: 13, color: AppTheme.textMuted)),
+          const SizedBox(height: 12),
+          TextField(
+            controller: ctrl,
+            autofocus: true,
+            decoration: const InputDecoration(hintText: 'APPROVE'),
+            textCapitalization: TextCapitalization.characters,
+          ),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel', style: TextStyle(color: AppTheme.textMuted))),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, ctrl.text.trim() == 'APPROVE'),
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.emerald),
+            child: const Text('Confirm'),
+          ),
+        ],
+      ),
+    );
+    ctrl.dispose();
+    if (confirmed != true) return;
+    try {
+      await _fs.db.collection('invoices').doc(invoiceId).update({
+        'status':      'approved',
+        'approved_at': DateTime.now().toIso8601String(),
+      });
+      _load();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Invoice approved',
+            style: TextStyle(color: Colors.white)),
+          backgroundColor: AppTheme.emerald,
+          behavior: SnackBarBehavior.floating));
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _releasePayment(BuildContext context, String invoiceId) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        title: const Text('Release payment',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+        content: const Text('Mark this invoice as paid and release funds?',
+          style: TextStyle(fontSize: 13, color: AppTheme.textMuted)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel', style: TextStyle(color: AppTheme.textMuted))),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary),
+            child: const Text('Release'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await _fs.db.collection('invoices').doc(invoiceId).update({
+        'status':      'paid',
+        'released_at': DateTime.now().toIso8601String(),
+      });
+      _load();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Payment released',
+            style: TextStyle(color: Colors.white)),
+          backgroundColor: AppTheme.emerald,
+          behavior: SnackBarBehavior.floating));
+      }
+    } catch (_) {}
+  }
+
   @override
   Widget build(BuildContext context) {
+    final auth      = context.read<AuthBloc>().state;
+    final isOwner   = auth is AuthAuthenticated &&
+        (auth.user.role == 'owner' || auth.user.role == 'admin');
     final netProfit = _revenue - _expenses;
     final narrow    = Responsive.isMobile(context);
     return AppShell(
@@ -266,6 +359,15 @@ class _InvoicesPageState extends State<InvoicesPage> {
                     inv:         inv,
                     statusColor: _statusColor(inv['status'] ?? ''),
                     onTap:       () => context.go('/invoices/${inv['id']}'),
+                    onApprove: isOwner &&
+                        inv['invoice_type'] == 'payable' &&
+                        (inv['status'] == 'sent' || inv['status'] == 'pending')
+                        ? () => _approveInvoice(context, inv['id'].toString())
+                        : null,
+                    onRelease: isOwner &&
+                        inv['status'] == 'approved'
+                        ? () => _releasePayment(context, inv['id'].toString())
+                        : null,
                   )).toList(),
                 ),
         ),
@@ -296,10 +398,18 @@ class _HeroStat extends StatelessWidget {
 }
 
 class _InvoiceRow extends StatelessWidget {
-  final Map inv;
-  final Color statusColor;
-  final VoidCallback onTap;
-  const _InvoiceRow({required this.inv, required this.statusColor, required this.onTap});
+  final Map              inv;
+  final Color            statusColor;
+  final VoidCallback     onTap;
+  final VoidCallback?    onApprove;
+  final VoidCallback?    onRelease;
+  const _InvoiceRow({
+    required this.inv,
+    required this.statusColor,
+    required this.onTap,
+    this.onApprove,
+    this.onRelease,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -313,33 +423,87 @@ class _InvoiceRow extends StatelessWidget {
         decoration: AppTheme.cardDecoration,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          child: Row(children: [
-            Container(
-              width: 38, height: 38,
-              decoration: BoxDecoration(
-                color: arrowColor.withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(10)),
-              child: Icon(
-                isReceivable
-                  ? Icons.arrow_downward_rounded
-                  : Icons.arrow_upward_rounded,
-                color: arrowColor, size: 18),
-            ),
-            const SizedBox(width: 12),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(inv['invoice_number'] ?? '',
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
-                  color: AppTheme.textPrimary)),
-              Text('${inv['party_name'] ?? ''}  ·  ${inv['issue_date'] ?? ''}',
-                style: const TextStyle(fontSize: 11, color: AppTheme.textMuted)),
-            ])),
-            Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-              Text('R ${inv['total'] ?? inv['subtotal'] ?? '—'}',
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700,
-                  color: AppTheme.textPrimary)),
-              const SizedBox(height: 4),
-              StatusPill(label: inv['status'] ?? '', color: statusColor),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Container(
+                width: 38, height: 38,
+                decoration: BoxDecoration(
+                  color: arrowColor.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(10)),
+                child: Icon(
+                  isReceivable
+                    ? Icons.arrow_downward_rounded
+                    : Icons.arrow_upward_rounded,
+                  color: arrowColor, size: 18),
+              ),
+              const SizedBox(width: 12),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(inv['invoice_number'] ?? '',
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
+                    color: AppTheme.textPrimary)),
+                Text('${inv['party_name'] ?? ''}  ·  ${inv['issue_date'] ?? ''}',
+                  style: const TextStyle(fontSize: 11, color: AppTheme.textMuted)),
+              ])),
+              Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                Text('R ${inv['total'] ?? inv['subtotal'] ?? '—'}',
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700,
+                    color: AppTheme.textPrimary)),
+                const SizedBox(height: 4),
+                StatusPill(label: inv['status'] ?? '', color: statusColor),
+              ]),
             ]),
+            // ── Approval actions (owner only) ────────────────────────────
+            if (onApprove != null || onRelease != null) ...[
+              const SizedBox(height: 10),
+              const Divider(height: 1, thickness: 0.5, color: AppTheme.border),
+              const SizedBox(height: 10),
+              Row(children: [
+                if (onApprove != null)
+                  Expanded(child: GestureDetector(
+                    onTap: onApprove,
+                    child: Container(
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: AppTheme.emerald.withValues(alpha: 0.10),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: AppTheme.emerald.withValues(alpha: 0.35))),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.check_circle_outline,
+                            size: 14, color: AppTheme.emerald),
+                          SizedBox(width: 6),
+                          Text('Approve', style: TextStyle(
+                            fontSize: 12, fontWeight: FontWeight.w600,
+                            color: AppTheme.emerald)),
+                        ]),
+                    ),
+                  )),
+                if (onRelease != null)
+                  Expanded(child: GestureDetector(
+                    onTap: onRelease,
+                    child: Container(
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: AppTheme.primary.withValues(alpha: 0.10),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: AppTheme.primary.withValues(alpha: 0.35))),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.send_outlined,
+                            size: 14, color: AppTheme.primary),
+                          SizedBox(width: 6),
+                          Text('Release Payment', style: TextStyle(
+                            fontSize: 12, fontWeight: FontWeight.w600,
+                            color: AppTheme.primary)),
+                        ]),
+                    ),
+                  )),
+              ]),
+            ],
           ]),
         ),
       ),

@@ -28,6 +28,7 @@ class _Stats {
   final int    openAlerts;
   final List<Map<String, dynamic>>  alertItems;
   final List<ComplianceAlert>       complianceAlerts;
+  final List<Map<String, dynamic>>  delayedTrips;
 
   const _Stats({
     required this.activeTrips,
@@ -42,6 +43,7 @@ class _Stats {
     required this.openAlerts,
     required this.alertItems,
     required this.complianceAlerts,
+    required this.delayedTrips,
   });
 }
 
@@ -112,6 +114,12 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
         }
       }
 
+      // ── Delayed trips (filter from already-fetched active trips) ───────────
+      final delayedTrips = activeTripDocs
+          .where((d) => (d.data()['delay_status'] ?? '') == 'delayed')
+          .map((d) => <String, dynamic>{...d.data(), 'id': d.id})
+          .toList();
+
       // ── Critical open repairs ──────────────────────────────────────────────
       final allRepairs = _fs.docsToList(results[4]);
       final criticals  = allRepairs.where((r) =>
@@ -137,6 +145,7 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
           openAlerts:          criticals.length,
           alertItems:          criticals.take(5).toList(),
           complianceAlerts:    complianceAlerts,
+          delayedTrips:        delayedTrips,
         );
         _loading = false;
       });
@@ -314,6 +323,12 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
                           ]),
 
                       const SizedBox(height: 16),
+
+                      // ── Delayed trips ─────────────────────────────────────
+                      if (!_loading && (s?.delayedTrips.isNotEmpty ?? false)) ...[
+                        _DelayedTripsCard(trips: s!.delayedTrips),
+                        const SizedBox(height: 16),
+                      ],
 
                       // ── Compliance alerts ─────────────────────────────────
                       if (!_loading && (s?.complianceAlerts.isNotEmpty ?? false)) ...[
@@ -753,6 +768,100 @@ class _AlertAction extends StatelessWidget {
         ]),
       ),
     ),
+  );
+}
+
+// ── Delayed trips card ────────────────────────────────────────────────────────
+
+class _DelayedTripsCard extends StatelessWidget {
+  final List<Map<String, dynamic>> trips;
+  const _DelayedTripsCard({required this.trips});
+
+  static const _reasonLabels = {
+    'border_delay': 'Border Delay',
+    'traffic':      'Traffic',
+    'road_closure': 'Road Closure',
+    'breakdown':    'Breakdown',
+    'accident':     'Accident',
+    'fuel_stop':    'Fuel Stop',
+    'other':        'Other',
+  };
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(18),
+    decoration: BoxDecoration(
+      color: AppTheme.surface,
+      borderRadius: BorderRadius.circular(14),
+      border: Border.all(color: AppTheme.amber.withValues(alpha: 0.4), width: 0.8),
+      boxShadow: const [
+        BoxShadow(color: Color(0x081E3A72), blurRadius: 16, offset: Offset(0, 4)),
+      ],
+    ),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Container(
+          width: 32, height: 32,
+          decoration: BoxDecoration(
+            color: AppTheme.amber.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(8)),
+          child: const Icon(Icons.schedule_outlined,
+            color: AppTheme.amber, size: 16),
+        ),
+        const SizedBox(width: 10),
+        Text('Delayed Trips (${trips.length})',
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700,
+            color: AppTheme.textPrimary)),
+        const Spacer(),
+        GestureDetector(
+          onTap: () => context.go('/trips'),
+          child: const Text('View all',
+            style: TextStyle(fontSize: 12, color: AppTheme.accent,
+              fontWeight: FontWeight.w500)),
+        ),
+      ]),
+      const SizedBox(height: 14),
+      ...trips.map((t) {
+        final route  = '${t['origin'] ?? ''}  →  ${t['destination'] ?? ''}';
+        final driver = t['driver_name']?.toString() ?? '—';
+        final reason = _reasonLabels[t['delay_reason'] ?? ''] ?? 'Delay reported';
+        final official = (t['official_reason'] ?? '').toString();
+        return Container(
+          margin: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: AppTheme.amber.withValues(alpha: 0.05),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: AppTheme.amber.withValues(alpha: 0.20))),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Expanded(child: Text(route,
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
+                  color: AppTheme.textPrimary))),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: AppTheme.amber.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(20)),
+                child: Text(reason, style: const TextStyle(
+                  fontSize: 10, fontWeight: FontWeight.w600,
+                  color: AppTheme.amber)),
+              ),
+            ]),
+            const SizedBox(height: 4),
+            Text('Driver: $driver',
+              style: const TextStyle(fontSize: 11, color: AppTheme.textMuted)),
+            if (official.isNotEmpty) ...[
+              const SizedBox(height: 3),
+              Text('Official: $official',
+                style: const TextStyle(fontSize: 11,
+                  color: AppTheme.textPrimary,
+                  fontStyle: FontStyle.italic)),
+            ],
+          ]),
+        );
+      }),
+    ]),
   );
 }
 

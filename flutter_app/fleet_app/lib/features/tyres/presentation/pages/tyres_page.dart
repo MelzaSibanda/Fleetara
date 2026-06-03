@@ -12,9 +12,10 @@ class TyresPage extends StatefulWidget {
 }
 
 class _TyresPageState extends State<TyresPage> {
-  List   _tyres   = [];
-  bool   _loading = true;
-  String _filter  = 'all';
+  List   _tyres    = [];
+  List   _allTyres = [];
+  bool   _loading  = true;
+  String _filter   = 'all';
   final _fs = sl<FirestoreService>();
 
   static const _filters = ['all', 'good', 'worn', 'critical', 'replaced'];
@@ -25,12 +26,21 @@ class _TyresPageState extends State<TyresPage> {
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
-      final snap = _filter == 'all'
-          ? await _fs.db.collection('tyres').get()
-          : await _fs.db.collection('tyres')
-              .where('condition', isEqualTo: _filter).get();
-      setState(() { _tyres = _fs.docsToList(snap); _loading = false; });
+      final snap = await _fs.db.collection('tyres').get();
+      _allTyres  = _fs.docsToList(snap);
+      _applyFilter();
+      setState(() => _loading = false);
     } catch (_) { setState(() => _loading = false); }
+  }
+
+  void _applyFilter() {
+    setState(() {
+      _tyres = _filter == 'all'
+          ? List.from(_allTyres)
+          : _allTyres
+              .where((t) => (t['condition'] ?? '') == _filter)
+              .toList();
+    });
   }
 
   Future<void> _deleteTyre(Map tyre) async {
@@ -93,7 +103,7 @@ class _TyresPageState extends State<TyresPage> {
               return Padding(
                 padding: const EdgeInsets.only(right: 8),
                 child: GestureDetector(
-                  onTap: () { setState(() => _filter = f); _load(); },
+                  onTap: () { setState(() => _filter = f); _applyFilter(); },
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
                     decoration: BoxDecoration(

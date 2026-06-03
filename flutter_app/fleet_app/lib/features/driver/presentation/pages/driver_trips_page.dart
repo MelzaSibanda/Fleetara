@@ -182,20 +182,31 @@ class _DriverTripCard extends StatelessWidget {
               onTap: () => onStatusUpdate(trip.id, 'in_progress'),
             ),
           if (trip.status == 'in_progress')
-            Row(children: [
-              Expanded(child: _ActionBtn(
-                label: 'Complete',
-                color: AppTheme.emerald,
-                icon: Icons.check_circle_outline,
-                onTap: () => onStatusUpdate(trip.id, 'completed'),
-              )),
-              const SizedBox(width: 8),
-              Expanded(child: _ActionBtn(
-                label: 'Log Fuel',
-                color: AppTheme.amber,
-                icon: Icons.local_gas_station,
-                onTap: () => context.go('/fuel/add'),
-              )),
+            Column(children: [
+              Row(children: [
+                Expanded(child: _ActionBtn(
+                  label: 'Complete',
+                  color: AppTheme.emerald,
+                  icon: Icons.check_circle_outline,
+                  onTap: () => onStatusUpdate(trip.id, 'completed'),
+                )),
+                const SizedBox(width: 8),
+                Expanded(child: _ActionBtn(
+                  label: 'Log Fuel',
+                  color: AppTheme.amber,
+                  icon: Icons.local_gas_station,
+                  onTap: () => context.go('/fuel/add'),
+                )),
+              ]),
+              const SizedBox(height: 8),
+              _ActionBtn(
+                label: 'Report Delay',
+                color: AppTheme.rose,
+                icon: Icons.schedule_outlined,
+                onTap: () => context.go(
+                  '/trips/${trip.id}/delay',
+                  extra: '${trip.origin} → ${trip.destination}'),
+              ),
             ]),
         ]),
       ),
