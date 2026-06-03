@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/service_locator.dart';
 import '../../../../core/services/firestore_service.dart';
@@ -83,6 +84,12 @@ class _TyresPageState extends State<TyresPage> {
     return AppShell(
       title: 'Tyres',
       actions: [
+        TextButton.icon(
+          onPressed: () => context.go('/tyres/inspect'),
+          icon: const Icon(Icons.search, size: 16, color: AppTheme.accent),
+          label: const Text('Inspect',
+            style: TextStyle(color: AppTheme.accent, fontSize: 12)),
+        ),
         TextButton.icon(
           onPressed: () => _openForm(context),
           icon: const Icon(Icons.add, size: 16, color: AppTheme.primary),

@@ -26,6 +26,7 @@ import '../../features/tyres/presentation/pages/tyres_page.dart';
 import '../../features/services/presentation/pages/services_page.dart';
 import '../../features/services/presentation/pages/add_service_page.dart';
 import '../../features/trips/presentation/pages/log_delay_page.dart';
+import '../../features/tyres/presentation/pages/tyre_inspection_page.dart';
 import '../../features/daily_checks/presentation/pages/daily_checks_page.dart';
 import '../../features/driver/presentation/pages/daily_check_form_page.dart';
 import '../../features/driver/presentation/pages/daily_check_history_page.dart';
@@ -120,6 +121,7 @@ GoRouter buildRouter(AuthBloc authBloc, ChangeNotifier refreshListenable) {
           invoiceId: state.pathParameters['id']!),
       ),
       GoRoute(path: '/tyres',            builder: (_, __) => const TyresPage()),
+      GoRoute(path: '/tyres/inspect',    builder: (_, __) => const TyreInspectionPage()),
       GoRoute(path: '/services',         builder: (_, __) => const ServicesPage()),
       GoRoute(path: '/services/add',     builder: (_, __) => const AddServicePage()),
       GoRoute(path: '/daily-checks',     builder: (_, __) => const DailyChecksPage()),
