@@ -184,7 +184,8 @@ class _AddServicePageState extends State<AddServicePage> {
                           hint: Text(
                             _vehicles.isEmpty ? 'No active vehicles' : 'Select a vehicle',
                             style: const TextStyle(fontSize: 12)),
-                          value: _selectedVehicleId,
+                          
+                          : _selectedVehicleId,
                           isExpanded: true,
                           items: _vehicles.map((v) => DropdownMenuItem<String>(
                             value: v['id'] as String,

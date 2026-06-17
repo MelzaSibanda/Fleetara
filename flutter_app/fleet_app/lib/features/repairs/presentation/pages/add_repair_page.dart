@@ -251,7 +251,7 @@ class _AddRepairPageState extends State<AddRepairPage> {
                                 ? 'No ${_vehicleType == 'horse' ? 'trucks' : 'trailers'} available'
                                 : 'Select a vehicle',
                             style: const TextStyle(fontSize: 12)),
-                          value: _selectedVehicleId,
+                          initialValue: _selectedVehicleId,
                           isExpanded: true,
                           items: _filteredVehicles
                               .map((v) => DropdownMenuItem<String>(

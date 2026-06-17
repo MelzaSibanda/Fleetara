@@ -35,6 +35,8 @@ import '../../features/repairs/presentation/pages/repairs_page.dart';
 import '../../features/repairs/presentation/pages/add_repair_page.dart';
 import '../../features/notifications/presentation/pages/notifications_page.dart';
 import '../../features/gps/presentation/pages/live_map_page.dart';
+import '../../features/drivers/presentation/pages/drivers_page.dart';
+import '../../features/drivers/presentation/pages/driver_profile_page.dart';
 
 GoRouter buildRouter(AuthBloc authBloc, ChangeNotifier refreshListenable) {
   return GoRouter(
@@ -133,6 +135,12 @@ GoRouter buildRouter(AuthBloc authBloc, ChangeNotifier refreshListenable) {
       GoRoute(path: '/repairs/add',      builder: (_, __) => const AddRepairPage()),
       GoRoute(path: '/notifications',    builder: (_, __) => const NotificationsPage()),
       GoRoute(path: '/gps/live',         builder: (_, __) => const LiveMapPage()),
+      GoRoute(path: '/drivers',          builder: (_, __) => const DriversPage()),
+      GoRoute(
+        path: '/drivers/:id',
+        builder: (_, state) => DriverProfilePage(
+            userId: state.pathParameters['id']!)),
+      GoRoute(path: '/profile',          builder: (_, __) => const DriverProfilePage()),
     ],
   );
 }

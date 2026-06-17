@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -142,6 +144,31 @@ class _VehicleCard extends StatelessWidget {
     }
   }
 
+  Widget _thumb() {
+    final p = vehicle.photo;
+    if (p != null && p.isNotEmpty) {
+      try {
+        final bytes = base64Decode(p);
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: Image.memory(bytes,
+            width: 48, height: 48, fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => _thumbIcon()),
+        );
+      } catch (_) {}
+    }
+    return _thumbIcon();
+  }
+
+  Widget _thumbIcon() => Container(
+    width: 48, height: 48,
+    decoration: BoxDecoration(
+      color: _statusColor.withValues(alpha: 0.10),
+      borderRadius: BorderRadius.circular(10),
+    ),
+    child: Icon(Icons.local_shipping, color: _statusColor, size: 22),
+  );
+
   void _confirmDelete(BuildContext context) {
     showDialog(
       context: context,
@@ -179,14 +206,7 @@ class _VehicleCard extends StatelessWidget {
         padding: const EdgeInsets.all(14),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            Container(
-              width: 40, height: 40,
-              decoration: BoxDecoration(
-                color: _statusColor.withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(Icons.local_shipping, color: _statusColor, size: 20),
-            ),
+            _thumb(),
             const SizedBox(width: 12),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(vehicle.registrationNumber,

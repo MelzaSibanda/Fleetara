@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -37,6 +38,7 @@ class AppShell extends StatelessWidget {
     final isWide   = Responsive.isWide(context);
     final items    = _navItemsForRole(user.role);
     final initials = user.firstName.isNotEmpty ? user.firstName[0].toUpperCase() : 'U';
+    final photo    = user.profilePhoto;
 
     return Scaffold(
       backgroundColor: AppTheme.background,
@@ -60,7 +62,7 @@ class AppShell extends StatelessWidget {
           ...?actions,
           _NotificationBell(uid: FirebaseAuth.instance.currentUser?.uid ?? ''),
           const SizedBox(width: 6),
-          _UserAvatar(initials: initials, user: user, showName: isWide),
+          _UserAvatar(initials: initials, photo: photo, user: user, showName: isWide),
           const SizedBox(width: 14),
         ],
       ),
@@ -89,6 +91,7 @@ class AppShell extends StatelessWidget {
       return [
         _NavItem('/dashboard',    Icons.home_outlined,                 'Home'),
         _NavItem('/vehicles',     Icons.local_shipping_outlined,       'Vehicles'),
+        _NavItem('/drivers',      Icons.people_outlined,               'Drivers'),
         _NavItem('/trips',        Icons.route_outlined,                'Trips'),
         _NavItem('/daily-checks', Icons.assignment_turned_in_outlined, 'Daily Checks'),
         _NavItem('/fuel',         Icons.local_gas_station_outlined,    'Fuel'),
@@ -151,9 +154,34 @@ class _NotificationBell extends StatelessWidget {
 
 class _UserAvatar extends StatelessWidget {
   final String  initials;
+  final String? photo;
   final dynamic user;
   final bool    showName;
-  const _UserAvatar({required this.initials, required this.user, this.showName = false});
+  const _UserAvatar({required this.initials, this.photo, required this.user,
+      this.showName = false});
+
+  Widget _avatar() {
+    if (photo != null && photo!.isNotEmpty) {
+      try {
+        final bytes = base64Decode(photo!);
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: Image.memory(bytes, width: 34, height: 34, fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => _initialsBox()),
+        );
+      } catch (_) {}
+    }
+    return _initialsBox();
+  }
+
+  Widget _initialsBox() => Container(
+    width: 34, height: 34,
+    decoration: BoxDecoration(
+      color: AppTheme.darkNavy, borderRadius: BorderRadius.circular(10)),
+    child: Center(child: Text(initials,
+      style: const TextStyle(color: Colors.white, fontSize: 13,
+        fontWeight: FontWeight.w700))),
+  );
 
   @override
   Widget build(BuildContext context) => PopupMenuButton<String>(
@@ -162,16 +190,7 @@ class _UserAvatar extends StatelessWidget {
     elevation: 8,
     shadowColor: const Color(0x1A1E3A72),
     child: Row(mainAxisSize: MainAxisSize.min, children: [
-      Container(
-        width: 34, height: 34,
-        decoration: BoxDecoration(
-          color: AppTheme.darkNavy,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Center(child: Text(initials,
-          style: const TextStyle(color: Colors.white, fontSize: 13,
-            fontWeight: FontWeight.w700))),
-      ),
+      _avatar(),
       if (showName) ...[
         const SizedBox(width: 8),
         Text(user.firstName,
@@ -194,6 +213,14 @@ class _UserAvatar extends StatelessWidget {
         ]),
       ),
       const PopupMenuDivider(),
+      PopupMenuItem(
+        onTap: () => context.go('/profile'),
+        child: const Row(children: [
+          Icon(Icons.person_outline, size: 16, color: AppTheme.primary),
+          SizedBox(width: 10),
+          Text('My Profile', style: TextStyle(fontSize: 13)),
+        ]),
+      ),
       PopupMenuItem(
         onTap: () => _confirmSignOut(context),
         child: const Row(children: [

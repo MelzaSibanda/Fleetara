@@ -8,7 +8,10 @@
       "Bash(flutter run *)",
       "Bash(venv/Scripts/python.exe -c ' *)",
       "Bash(git add *)",
-      "Bash(venv/Scripts/python.exe manage.py check)"
+      "Bash(venv/Scripts/python.exe manage.py check)",
+      "Bash(dart format *)",
+      "Bash(git show *)",
+      "Read(//tmp/**)"
     ]
   }
 }
