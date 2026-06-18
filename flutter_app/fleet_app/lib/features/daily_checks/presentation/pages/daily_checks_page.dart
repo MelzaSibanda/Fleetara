@@ -171,8 +171,11 @@ class _CheckCard extends StatelessWidget {
     final odo    = check['odometer']    ?? 0;
 
     final issues = <String>[];
-    final tyreList = ['tyre_fl','tyre_fr','tyre_rl','tyre_rr']
-        .map((k) => check[k]?.toString() ?? 'good').toList();
+    final positions = check['tyre_positions'];
+    final tyreList = positions is Map
+        ? positions.values.map((v) => v?.toString() ?? 'good').toList()
+        : ['tyre_fl','tyre_fr','tyre_rl','tyre_rr']
+            .map((k) => check[k]?.toString() ?? 'good').toList();
     if (tyreList.any((t) => t == 'damaged' || t == 'burst_risk')) {
       issues.add('Critical tyre');
     } else if (tyreList.any((t) => t == 'worn' || t == 'low_pressure')) {

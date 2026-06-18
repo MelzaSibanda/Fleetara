@@ -184,8 +184,12 @@ class _AddServicePageState extends State<AddServicePage> {
                           hint: Text(
                             _vehicles.isEmpty ? 'No active vehicles' : 'Select a vehicle',
                             style: const TextStyle(fontSize: 12)),
+<<<<<<< Updated upstream
                           
                           : _selectedVehicleId,
+=======
+                          initialValue: _selectedVehicleId,
+>>>>>>> Stashed changes
                           isExpanded: true,
                           items: _vehicles.map((v) => DropdownMenuItem<String>(
                             value: v['id'] as String,

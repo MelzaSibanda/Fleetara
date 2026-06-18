@@ -1,11 +1,16 @@
 import 'dart:convert';
+<<<<<<< Updated upstream
 import 'dart:typed_data';
 // ignore: avoid_web_libraries_in_flutter, deprecated_member_use
 import 'dart:html' as html;
+=======
+import 'dart:math' as math;
+>>>>>>> Stashed changes
 
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/service_locator.dart';
+import '../../../../core/utils/web_image_picker.dart';
 import '../../../../core/services/firestore_service.dart';
 import '../../../dashboard/presentation/widgets/app_shell.dart';
 import '../widgets/tyre_position_diagram.dart';
@@ -135,6 +140,7 @@ class _TyreInspectionPageState extends State<TyreInspectionPage> {
     setState(() => _rotateFrom = null);
     if (ok != true) return;
     try {
+<<<<<<< Updated upstream
       final fromCode = fs.position.toString();
       final toCode = ts.position.toString();
       final fT = _byPos[fromCode];
@@ -150,6 +156,17 @@ class _TyreInspectionPageState extends State<TyreInspectionPage> {
             .collection('tyres')
             .doc(tT['id'] as String)
             .update({'position': fromCode});
+=======
+      final fT = _byPos[fs.code];
+      final tT = _byPos[ts.code];
+      if (fT != null) {
+        await _fs.db.collection('tyres')
+          .doc(fT['id'] as String).update({'position': ts.code});
+      }
+      if (tT != null) {
+        await _fs.db.collection('tyres')
+          .doc(tT['id'] as String).update({'position': fs.code});
+>>>>>>> Stashed changes
       }
       await _fs.db.collection('tyre_rotations').add({
         'vehicle_id': _vehicleId,
@@ -164,18 +181,28 @@ class _TyreInspectionPageState extends State<TyreInspectionPage> {
       await _loadTyres();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+<<<<<<< Updated upstream
             content: Text('Rotation recorded',
                 style: TextStyle(color: Colors.white)),
             backgroundColor: AppTheme.emerald,
             behavior: SnackBarBehavior.floating));
+=======
+        content: Text('Rotation recorded', style: TextStyle(color: Colors.white)),
+        backgroundColor: AppTheme.emerald, behavior: SnackBarBehavior.floating));
+>>>>>>> Stashed changes
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+<<<<<<< Updated upstream
             content:
                 Text('Error: $e', style: const TextStyle(color: Colors.white)),
             backgroundColor: AppTheme.rose,
             behavior: SnackBarBehavior.floating));
+=======
+        content: Text('Error: $e', style: const TextStyle(color: Colors.white)),
+        backgroundColor: AppTheme.rose, behavior: SnackBarBehavior.floating));
+>>>>>>> Stashed changes
       }
     }
   }
@@ -190,6 +217,7 @@ class _TyreInspectionPageState extends State<TyreInspectionPage> {
           color: AppTheme.surface,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           child: DropdownButtonFormField<String>(
+<<<<<<< Updated upstream
             decoration: const InputDecoration(
                 labelText: 'Vehicle',
                 isDense: true,
@@ -198,6 +226,12 @@ class _TyreInspectionPageState extends State<TyreInspectionPage> {
             initialValue: _vehicleId,
             hint: const Text('Select vehicle to inspect',
                 style: TextStyle(fontSize: 12)),
+=======
+            decoration: const InputDecoration(labelText: 'Vehicle', isDense: true,
+              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
+            initialValue: _vehicleId,
+            hint: const Text('Select vehicle to inspect', style: TextStyle(fontSize: 12)),
+>>>>>>> Stashed changes
             isExpanded: true,
             items: _vehicles
                 .map((v) => DropdownMenuItem<String>(
@@ -334,6 +368,7 @@ class _DetailSheetState extends State<_DetailSheet> {
   Future<void> _uploadPhoto() async {
     setState(() => _uploading = true);
     try {
+<<<<<<< Updated upstream
       final input = html.FileUploadInputElement()..accept = 'image/*';
       input.click();
       final file = await input.onChange.first.then((_) => input.files?.first);
@@ -344,14 +379,24 @@ class _DetailSheetState extends State<_DetailSheet> {
       final reader = html.FileReader()..readAsArrayBuffer(file);
       await reader.onLoad.first;
       final bytes = reader.result as Uint8List;
+=======
+      final bytes = await pickImageBytes();
+      if (bytes == null) { setState(() => _uploading = false); return; }
+>>>>>>> Stashed changes
       // Limit: 700KB in Firestore. Warn if larger.
       if (bytes.length > 700000) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+<<<<<<< Updated upstream
               content: Text('Image too large — use a photo under 700 KB',
                   style: TextStyle(color: Colors.white)),
               backgroundColor: AppTheme.rose,
               behavior: SnackBarBehavior.floating));
+=======
+          content: Text('Image too large — use a photo under 700 KB',
+            style: TextStyle(color: Colors.white)),
+          backgroundColor: AppTheme.rose, behavior: SnackBarBehavior.floating));
+>>>>>>> Stashed changes
         }
         setState(() => _uploading = false);
         return;
@@ -385,6 +430,7 @@ class _DetailSheetState extends State<_DetailSheet> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+<<<<<<< Updated upstream
             content:
                 Text('Error: $e', style: const TextStyle(color: Colors.white)),
             backgroundColor: AppTheme.rose,
@@ -393,6 +439,12 @@ class _DetailSheetState extends State<_DetailSheet> {
     } finally {
       setState(() => _uploading = false);
     }
+=======
+        content: Text('Error: $e', style: const TextStyle(color: Colors.white)),
+        backgroundColor: AppTheme.rose, behavior: SnackBarBehavior.floating));
+      }
+    } finally { setState(() => _uploading = false); }
+>>>>>>> Stashed changes
   }
 
   Future<void> _updateCondition(String newCond) async {
@@ -406,10 +458,16 @@ class _DetailSheetState extends State<_DetailSheet> {
     widget.onUpdated();
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+<<<<<<< Updated upstream
           content: Text('Condition updated to $newCond',
               style: const TextStyle(color: Colors.white)),
           backgroundColor: AppTheme.emerald,
           behavior: SnackBarBehavior.floating));
+=======
+      content: Text('Condition updated to $newCond',
+        style: const TextStyle(color: Colors.white)),
+      backgroundColor: AppTheme.emerald, behavior: SnackBarBehavior.floating));
+>>>>>>> Stashed changes
     }
   }
 

@@ -73,20 +73,26 @@ class DailyCheckModel {
     return false;
   }
 
-  // Derives tyrePressure from per-tyre strings (new schema) or legacy bool.
+  // Derives tyrePressure from the 20-position map (current schema), the
+  // legacy 4-tyre strings, or the original legacy bool — in that order.
   static bool _tyrePressure(Map<String, dynamic> j) {
+    const bad = {'low_pressure', 'burst_risk'};
+    final positions = j['tyre_positions'];
+    if (positions is Map) return positions.values.every((v) => !bad.contains(v));
     if (j.containsKey('tyre_fl')) {
-      const bad = {'low_pressure', 'burst_risk'};
       return !bad.contains(j['tyre_fl']) && !bad.contains(j['tyre_fr']) &&
              !bad.contains(j['tyre_rl']) && !bad.contains(j['tyre_rr']);
     }
     return _b(j['tyre_pressure']);
   }
 
-  // Derives tyreCondition from per-tyre strings (new schema) or legacy bool.
+  // Derives tyreCondition from the 20-position map (current schema), the
+  // legacy 4-tyre strings, or the original legacy bool — in that order.
   static bool _tyreCondition(Map<String, dynamic> j) {
+    const bad = {'damaged', 'burst_risk'};
+    final positions = j['tyre_positions'];
+    if (positions is Map) return positions.values.every((v) => !bad.contains(v));
     if (j.containsKey('tyre_fl')) {
-      const bad = {'damaged', 'burst_risk'};
       return !bad.contains(j['tyre_fl']) && !bad.contains(j['tyre_fr']) &&
              !bad.contains(j['tyre_rl']) && !bad.contains(j['tyre_rr']);
     }

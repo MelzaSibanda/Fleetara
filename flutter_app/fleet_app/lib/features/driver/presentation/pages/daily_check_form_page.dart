@@ -1,13 +1,34 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/services/firestore_service.dart';
+import '../../../../core/utils/web_image_picker.dart';
+import '../../../../core/services/notification_service.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/service_locator.dart';
+import '../../../../core/widgets/tyre_truck_diagram.dart';
 import '../bloc/inspection_bloc.dart';
 import '../bloc/inspection_event.dart';
 import '../bloc/inspection_state.dart';
+
+const _kTyreConditions = [
+  ('good',         'Good',         '🟢', AppTheme.emerald),
+  ('worn',         'Worn',         '🟡', AppTheme.amber),
+  ('low_pressure', 'Low Pressure', '🟠', Colors.orange),
+  ('damaged',      'Damaged',      '🔴', AppTheme.rose),
+  ('burst_risk',   'Burst Risk',   '🚨', Color(0xFF7F1D1D)),
+];
+
+Color _tyreConditionColor(String? cond) {
+  for (final c in _kTyreConditions) {
+    if (c.$1 == cond) return c.$4;
+  }
+  return Colors.grey;
+}
 
 class DailyCheckFormPage extends StatefulWidget {
   const DailyCheckFormPage({super.key});
@@ -35,12 +56,21 @@ class _DailyCheckFormPageState extends State<DailyCheckFormPage> {
   String _brakeFluid   = 'good';
   bool   _noLeaks      = true;
 
-  // Tyres
-  String _tyreFl = 'good';
-  String _tyreFr = 'good';
-  String _tyreRl = 'good';
-  String _tyreRr = 'good';
+  // Tyres — null = pending / not yet inspected
+  final Map<String, String?> _tyreCondition = {for (final p in kTyreSlots) p.code: null};
+  final Map<String, String?> _tyrePhoto     = {for (final p in kTyreSlots) p.code: null};
+  final Set<String> _tyreIncidentLogged     = {};
   bool   _wheelNuts = true;
+
+  // Trailer tyres only apply when a trailer is actually coupled — a horse
+  // running solo only has its own steer + drive axles to inspect.
+  List<TyreSlot> get _activeTyreSlots =>
+      _hasTrailer ? kTyreSlots : kTyreSlots.where((s) => s.axle != 'trailer').toList(growable: false);
+
+  bool get _tyresComplete =>
+      _activeTyreSlots.every((p) => _tyreCondition[p.code] != null && _tyrePhoto[p.code] != null);
+  int get _tyresInspectedCount =>
+      _activeTyreSlots.where((p) => _tyreCondition[p.code] != null && _tyrePhoto[p.code] != null).length;
 
   // Brakes & Lights
   bool _brakeResponse = true;
@@ -103,7 +133,7 @@ class _DailyCheckFormPageState extends State<DailyCheckFormPage> {
   }
 
   String _computeStatus() {
-    final tyreList = [_tyreFl, _tyreFr, _tyreRl, _tyreRr];
+    final tyreList = _tyreCondition.values;
     if (tyreList.any((t) => t == 'damaged' || t == 'burst_risk') ||
         _oilLevel == 'critical' || _coolantLevel == 'critical' || _brakeFluid == 'critical' ||
         !_brakeResponse || !_airPressure) {
@@ -123,6 +153,11 @@ class _DailyCheckFormPageState extends State<DailyCheckFormPage> {
   bool _validateStep() {
     if (_step == 0 && _horseId == null) {
       _showSnack('Please select a horse vehicle to continue', AppTheme.rose);
+      return false;
+    }
+    if (_step == 2 && !_tyresComplete) {
+      _showSnack('Tap each tyre, choose its condition and capture a photo to continue',
+        AppTheme.rose);
       return false;
     }
     if (_step == 5 && _odomCtrl.text.trim().isEmpty) {
@@ -171,10 +206,12 @@ class _DailyCheckFormPageState extends State<DailyCheckFormPage> {
       'coolant_level':  _coolantLevel,
       'brake_fluid':    _brakeFluid,
       'no_engine_leaks': _noLeaks,
-      'tyre_fl':        _tyreFl,
-      'tyre_fr':        _tyreFr,
-      'tyre_rl':        _tyreRl,
-      'tyre_rr':        _tyreRr,
+      // Photos are mandatory proof-of-inspection captured per tyre but are not
+      // persisted on the check document itself (20 photos would blow well past
+      // Firestore's 1 MB document limit) — only the recorded conditions are.
+      // Only the slots actually inspected are written (a solo horse has no
+      // trailer tyres to report).
+      'tyre_positions': {for (final s in _activeTyreSlots) s.code: _tyreCondition[s.code]},
       'wheel_nuts':     _wheelNuts,
       'brake_response': _brakeResponse,
       'air_pressure':   _airPressure,
@@ -329,19 +366,97 @@ class _DailyCheckFormPageState extends State<DailyCheckFormPage> {
 
   // ── Step 2: Tyre Inspection ────────────────────────────────────────────────
   Widget _stepTyres() => _StepScroll(children: [
-    _StepHint('Inspect each tyre individually. Select the condition that best describes what you see.'),
-    const SizedBox(height: 8),
-    _SectionLabel('Tyre Conditions'),
-    _TyreRow(label: 'Front Left',  value: _tyreFl, onChanged: (v) => setState(() => _tyreFl = v)),
-    _TyreRow(label: 'Front Right', value: _tyreFr, onChanged: (v) => setState(() => _tyreFr = v)),
-    _TyreRow(label: 'Rear Left',   value: _tyreRl, onChanged: (v) => setState(() => _tyreRl = v)),
-    _TyreRow(label: 'Rear Right',  value: _tyreRr, onChanged: (v) => setState(() => _tyreRr = v)),
+    _StepHint(_hasTrailer
+        ? 'Tap each tyre on the diagram, choose the condition you observe, '
+          'then capture a photo as proof of inspection.'
+        : 'No trailer is coupled — only the horse\'s steer and drive tyres '
+          'need inspecting. Tap each one, choose its condition and capture a photo.'),
+    const SizedBox(height: 12),
+    _TyreProgressTracker(done: _tyresInspectedCount, total: _activeTyreSlots.length),
+    const SizedBox(height: 14),
+    _TyreDiagram(condition: _tyreCondition, photo: _tyrePhoto,
+      showTrailer: _hasTrailer, onTap: _openTyreSheet),
+    const SizedBox(height: 12),
+    const _TyreLegend(),
     const SizedBox(height: 20),
     _SectionLabel('Wheels'),
     _ToggleRow(label: 'Wheel nuts are tight', value: _wheelNuts,
       okLabel: 'Tight', nokLabel: 'Loose',
       onChanged: (v) => setState(() => _wheelNuts = v)),
   ]);
+
+  void _openTyreSheet(String code) {
+    final pos = kTyreSlots.firstWhere((p) => p.code == code);
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _TyreInspectSheet(
+        pos:       pos,
+        condition: _tyreCondition[code],
+        photo:     _tyrePhoto[code],
+        onConditionSet: (cond) => setState(() => _tyreCondition[code] = cond),
+        onPhotoSet: (b64) {
+          setState(() => _tyrePhoto[code] = b64);
+          _maybeRaiseTyreIncident(code);
+        },
+      ),
+    );
+  }
+
+  // Stakeholder requirement: Damaged / Burst Risk tyres auto-create an
+  // incident and notify the fleet manager + workshop the moment they're
+  // confirmed (condition selected + photo captured), not at submission time.
+  Future<void> _maybeRaiseTyreIncident(String code) async {
+    final cond = _tyreCondition[code];
+    if (cond != 'damaged' && cond != 'burst_risk') return;
+    if (!_tyreIncidentLogged.add(code)) return;
+
+    final pos     = kTyreSlots.firstWhere((p) => p.code == code);
+    final user    = FirebaseAuth.instance.currentUser;
+    final isBurst = cond == 'burst_risk';
+    final title   = '${isBurst ? "Burst risk" : "Tyre damage"} — ${pos.label}'
+                    '${_horseReg != null ? " ($_horseReg)" : ""}';
+    try {
+      await _fs.db.collection('repairs').add({
+        'title':            title,
+        'description':      'Automatically reported during the daily inspection: '
+                            '${pos.label} tyre flagged as '
+                            '${isBurst ? "burst risk" : "damaged"}.',
+        'priority':         isBurst ? 'critical' : 'high',
+        'status':           'reported',
+        'vehicle_id':       _horseId,
+        'vehicle_type':     'horse',
+        'vehicle_reg':      _horseReg,
+        'issue_category':   'tyres',
+        'symptoms':         [isBurst ? 'Blowout' : 'Damage'],
+        'specialist_type':  'Tyre Specialist',
+        'reported_by':      user?.uid,
+        'reported_by_name': user?.displayName ?? 'Driver',
+        'reported_at':      DateTime.now().toIso8601String(),
+        'auto_generated':   true,
+        'source':           'daily_check_tyre_inspection',
+      });
+      unawaited(sl<NotificationService>().sendToManagers(
+        'repair',
+        isBurst ? 'Burst risk reported' : 'Tyre damage reported',
+        '${pos.label} on ${_horseReg ?? "vehicle"} — fleet manager and workshop notified',
+        actor: user?.displayName ?? 'Driver',
+        data: {
+          'priority':       isBurst ? 'critical' : 'high',
+          'title':          title,
+          'vehicle_reg':    _horseReg,
+          'issue_category': 'tyres',
+        },
+      ));
+      if (mounted) {
+        _showSnack(
+          '${isBurst ? "Burst risk" : "Damage"} on ${pos.label} reported — '
+          'fleet manager and workshop notified',
+          AppTheme.rose);
+      }
+    } catch (_) {}
+  }
 
   // ── Step 3: Brakes & Lights ────────────────────────────────────────────────
   Widget _stepBrakesLights() => _StepScroll(children: [
@@ -472,7 +587,7 @@ class _DailyCheckFormPageState extends State<DailyCheckFormPage> {
     final statusIcon  = status == 'pass' ? Icons.check_circle_outline
       : status == 'critical' ? Icons.error_outline : Icons.warning_amber_rounded;
 
-    final tyreList = [_tyreFl, _tyreFr, _tyreRl, _tyreRr];
+    final tyreList = _tyreCondition.values;
     final issues = <String>[];
     if (tyreList.any((t) => t == 'damaged' || t == 'burst_risk')) issues.add('Critical tyre issue');
     if (tyreList.any((t) => t == 'worn' || t == 'low_pressure')) issues.add('Tyre wear/pressure');
@@ -707,61 +822,269 @@ class _FluidRow extends StatelessWidget {
   );
 }
 
-// Tyre condition row: Good / Worn / Damaged / Low P / Burst
-class _TyreRow extends StatelessWidget {
-  final String   label, value;
-  final void Function(String) onChanged;
-  const _TyreRow({required this.label, required this.value, required this.onChanged});
-
-  static const _opts   = ['good', 'worn', 'damaged', 'low_pressure', 'burst_risk'];
-  static const _labels = ['Good', 'Worn', 'Damaged', 'Low P', 'Burst'];
-  static const _colors = [
-    AppTheme.emerald, AppTheme.amber, AppTheme.rose, AppTheme.amber, AppTheme.rose,
-  ];
+// ── Interactive tyre diagram ───────────────────────────────────────────────
+// Tap a tyre on the 20-position truck + trailer rig to open the inspection
+// sheet. Colour reflects the recorded condition; a check badge marks tyres
+// that have a condition AND a photo, a white dot marks ones still pending.
+class _TyreDiagram extends StatelessWidget {
+  final Map<String, String?> condition, photo;
+  final bool showTrailer;
+  final void Function(String code) onTap;
+  const _TyreDiagram({required this.condition, required this.photo,
+      required this.showTrailer, required this.onTap});
 
   @override
   Widget build(BuildContext context) => Container(
-    margin: const EdgeInsets.only(bottom: 10),
-    padding: const EdgeInsets.all(12),
+    padding: const EdgeInsets.symmetric(vertical: 20),
     decoration: BoxDecoration(
       color: AppTheme.surface,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(16),
       border: Border.all(color: AppTheme.border, width: 0.5),
     ),
-    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(children: [
-        const Icon(Icons.tire_repair, size: 16, color: AppTheme.textMuted),
-        const SizedBox(width: 6),
-        Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500,
-          color: AppTheme.textPrimary)),
-      ]),
-      const SizedBox(height: 10),
-      SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(children: List.generate(_opts.length, (i) {
-          final sel = value == _opts[i];
-          return Padding(
-            padding: const EdgeInsets.only(right: 6),
-            child: GestureDetector(
-              onTap: () => onChanged(_opts[i]),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                decoration: BoxDecoration(
-                  color: sel ? _colors[i].withValues(alpha: 0.14) : AppTheme.background,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: sel ? _colors[i] : AppTheme.border, width: 0.8),
-                ),
-                child: Text(_labels[i], style: TextStyle(
-                  fontSize: 12, fontWeight: FontWeight.w500,
-                  color: sel ? _colors[i] : AppTheme.textMuted)),
-              ),
-            ),
-          );
-        })),
+    child: Center(
+      child: TyreTruckDiagram(
+        colorFor:    (code) => _tyreConditionColor(condition[code]),
+        isDone:      (code) => condition[code] != null && photo[code] != null,
+        isAttention: (code) => condition[code] == null,
+        showTrailer: showTrailer,
+        onTap: onTap,
       ),
-    ]),
+    ),
   );
+}
+
+class _TyreProgressTracker extends StatelessWidget {
+  final int done, total;
+  const _TyreProgressTracker({required this.done, required this.total});
+
+  @override
+  Widget build(BuildContext context) {
+    final pct = total == 0 ? 0.0 : done / total;
+    final fullyDone = done == total;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppTheme.border, width: 0.5),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          const Text('Tyres Inspected', style: TextStyle(fontSize: 12,
+            fontWeight: FontWeight.w600, color: AppTheme.textPrimary)),
+          Text('$done / $total complete', style: TextStyle(fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: fullyDone ? AppTheme.emerald : AppTheme.primary)),
+        ]),
+        const SizedBox(height: 8),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: LinearProgressIndicator(
+            value: pct, minHeight: 6,
+            backgroundColor: AppTheme.border,
+            color: fullyDone ? AppTheme.emerald : AppTheme.primary)),
+      ]),
+    );
+  }
+}
+
+class _TyreLegend extends StatelessWidget {
+  const _TyreLegend();
+  @override
+  Widget build(BuildContext context) => Wrap(
+    spacing: 14, runSpacing: 6, alignment: WrapAlignment.center,
+    children: [
+      _dot(Colors.grey, 'Pending'),
+      _dot(AppTheme.emerald, 'Good'),
+      _dot(AppTheme.amber, 'Worn'),
+      _dot(Colors.orange, 'Low Pressure'),
+      _dot(AppTheme.rose, 'Damaged'),
+      _dot(const Color(0xFF7F1D1D), 'Burst Risk'),
+    ],
+  );
+
+  Widget _dot(Color c, String label) => Row(mainAxisSize: MainAxisSize.min, children: [
+    Container(width: 9, height: 9, decoration: BoxDecoration(color: c, shape: BoxShape.circle)),
+    const SizedBox(width: 4),
+    Text(label, style: const TextStyle(fontSize: 10, color: AppTheme.textMuted)),
+  ]);
+}
+
+// ── Tyre inspection sheet: condition picker + mandatory photo ─────────────
+class _TyreInspectSheet extends StatefulWidget {
+  final TyreSlot pos;
+  final String?  condition, photo;
+  final void Function(String condition) onConditionSet;
+  final void Function(String photoBase64) onPhotoSet;
+  const _TyreInspectSheet({required this.pos, required this.condition, required this.photo,
+      required this.onConditionSet, required this.onPhotoSet});
+  @override State<_TyreInspectSheet> createState() => _TyreInspectSheetState();
+}
+
+class _TyreInspectSheetState extends State<_TyreInspectSheet> {
+  String? _condition;
+  String? _photo;
+  bool    _uploading = false;
+
+  @override void initState() {
+    super.initState();
+    _condition = widget.condition;
+    _photo     = widget.photo;
+  }
+
+  Future<void> _pickPhoto({required bool useCamera}) async {
+    setState(() => _uploading = true);
+    try {
+      final bytes = await pickImageBytes(useCamera: useCamera);
+      if (bytes == null) { setState(() => _uploading = false); return; }
+      if (bytes.length > 350000) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Image too large — use a photo under 350 KB',
+              style: TextStyle(color: Colors.white)),
+            backgroundColor: AppTheme.rose, behavior: SnackBarBehavior.floating));
+        }
+        setState(() => _uploading = false);
+        return;
+      }
+      final b64 = base64Encode(bytes);
+      widget.onPhotoSet(b64);
+      setState(() { _photo = b64; _uploading = false; });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Error: $e', style: const TextStyle(color: Colors.white)),
+          backgroundColor: AppTheme.rose, behavior: SnackBarBehavior.floating));
+      }
+      setState(() => _uploading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final color    = _tyreConditionColor(_condition);
+    final complete = _condition != null && _photo != null;
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+      decoration: BoxDecoration(color: AppTheme.surface, borderRadius: BorderRadius.circular(20)),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Center(child: Container(width: 36, height: 4,
+            decoration: BoxDecoration(color: AppTheme.border, borderRadius: BorderRadius.circular(2)))),
+          const SizedBox(height: 16),
+
+          Row(children: [
+            Container(
+              width: 44, height: 44,
+              decoration: BoxDecoration(color: color.withValues(alpha: 0.14), shape: BoxShape.circle),
+              child: Center(child: Icon(Icons.tire_repair, color: color)),
+            ),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('Inspect Tyre', style: TextStyle(fontSize: 11, color: AppTheme.textMuted)),
+              Text(widget.pos.label, style: const TextStyle(fontSize: 16,
+                fontWeight: FontWeight.w700, color: AppTheme.textPrimary)),
+            ])),
+            if (complete) const Icon(Icons.check_circle, color: AppTheme.emerald, size: 22),
+          ]),
+          const SizedBox(height: 16),
+          const Divider(height: 1, color: AppTheme.border),
+          const SizedBox(height: 16),
+
+          const Text('Condition', style: TextStyle(fontSize: 12,
+            fontWeight: FontWeight.w600, color: AppTheme.textMuted)),
+          const SizedBox(height: 10),
+          Wrap(spacing: 8, runSpacing: 8, children: _kTyreConditions.map((c) {
+            final sel = _condition == c.$1;
+            return GestureDetector(
+              onTap: () { widget.onConditionSet(c.$1); setState(() => _condition = c.$1); },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: sel ? c.$4.withValues(alpha: 0.14) : AppTheme.background,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: sel ? c.$4 : AppTheme.border, width: sel ? 1.4 : 0.8)),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Text(c.$3, style: const TextStyle(fontSize: 16)),
+                  const SizedBox(width: 8),
+                  Text(c.$2, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
+                    color: sel ? c.$4 : AppTheme.textPrimary)),
+                ]),
+              ),
+            );
+          }).toList()),
+
+          if (_condition != null) ...[
+            const SizedBox(height: 20),
+            const Divider(height: 1, color: AppTheme.border),
+            const SizedBox(height: 16),
+            Row(children: [
+              const Icon(Icons.camera_alt_outlined, size: 16, color: AppTheme.textMuted),
+              const SizedBox(width: 8),
+              const Text('Photo required', style: TextStyle(fontSize: 12,
+                fontWeight: FontWeight.w600, color: AppTheme.textMuted)),
+              const Spacer(),
+              if (_photo != null)
+                const Text('✓ Photo verified', style: TextStyle(fontSize: 11,
+                  fontWeight: FontWeight.w600, color: AppTheme.emerald)),
+            ]),
+            const SizedBox(height: 10),
+            if (_photo != null && _photo!.isNotEmpty) ...[
+              ClipRRect(borderRadius: BorderRadius.circular(10),
+                child: Image.memory(base64Decode(_photo!),
+                  height: 140, width: double.infinity, fit: BoxFit.cover)),
+              const SizedBox(height: 10),
+            ],
+            Row(children: [
+              Expanded(child: _photoBtn(
+                label: _uploading ? 'Uploading…' : (_photo == null ? 'Camera' : 'Retake'),
+                icon:  Icons.camera_alt,
+                onTap: _uploading ? null : () => _pickPhoto(useCamera: true))),
+              const SizedBox(width: 10),
+              Expanded(child: _photoBtn(
+                label: 'Gallery', icon: Icons.photo_library_outlined,
+                onTap: _uploading ? null : () => _pickPhoto(useCamera: false))),
+            ]),
+            if (_photo == null) ...[
+              const SizedBox(height: 8),
+              const Text('Tyre image required — capture a photo to mark this tyre inspected.',
+                style: TextStyle(fontSize: 11, color: AppTheme.rose)),
+            ],
+          ],
+
+          const SizedBox(height: 20),
+          SizedBox(width: double.infinity, child: ElevatedButton(
+            onPressed: complete ? () => Navigator.pop(context) : null,
+            style: ElevatedButton.styleFrom(minimumSize: const Size(0, 46)),
+            child: Text(
+              complete ? 'Done' : 'Choose a condition and capture a photo',
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+          )),
+        ]),
+      ),
+    );
+  }
+
+  Widget _photoBtn({required String label, required IconData icon, required VoidCallback? onTap}) =>
+    GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 44,
+        decoration: BoxDecoration(
+          color: AppTheme.accent.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppTheme.accent.withValues(alpha: 0.35))),
+        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          Icon(icon, size: 16, color: AppTheme.accent),
+          const SizedBox(width: 6),
+          Text(label, style: const TextStyle(fontSize: 12,
+            fontWeight: FontWeight.w600, color: AppTheme.accent)),
+        ]),
+      ),
+    );
 }
 
 // Binary toggle row: OK / Not OK
