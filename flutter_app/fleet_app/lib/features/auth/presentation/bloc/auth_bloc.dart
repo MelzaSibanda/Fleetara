@@ -37,8 +37,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<AuthRegisterRequested>((event, emit) async {
       emit(AuthLoading());
       try {
-        await _dataSource.register(event.userData);
-        final user = await _dataSource.getMe();
+        final user = await _dataSource.register(event.userData);
         emit(AuthAuthenticated(user));
       } catch (e) {
         emit(AuthError(_parseError(e)));

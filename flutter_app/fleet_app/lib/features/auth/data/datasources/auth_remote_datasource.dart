@@ -13,7 +13,7 @@ class AuthRemoteDataSource {
       email: email, password: password);
   }
 
-  Future<void> register(Map<String, dynamic> userData) async {
+  Future<UserModel> register(Map<String, dynamic> userData) async {
     final credential = await _firebaseAuth.createUserWithEmailAndPassword(
       email:    userData['email'],
       password: userData['password'],
@@ -22,19 +22,19 @@ class AuthRemoteDataSource {
     final fullName = '${userData['first_name']} ${userData['last_name']}'.trim();
     await user.updateDisplayName(fullName);
 
-    try {
-      await _fs.db.collection('users').doc(user.uid).set({
-        'id':         user.uid,
-        'email':      userData['email'],
-        'first_name': userData['first_name'] ?? '',
-        'last_name':  userData['last_name']  ?? '',
-        'full_name':  fullName,
-        'phone':      userData['phone'] ?? '',
-        'role':       userData['role']  ?? 'driver',
-        'is_active':  true,
-        'created_at': DateTime.now().toIso8601String(),
-      });
-    } catch (_) {}
+    final profile = <String, dynamic>{
+      'id':         user.uid,
+      'email':      userData['email'],
+      'first_name': userData['first_name'] ?? '',
+      'last_name':  userData['last_name']  ?? '',
+      'full_name':  fullName,
+      'phone':      userData['phone'] ?? '',
+      'role':       userData['role']  ?? 'driver',
+      'is_active':  true,
+      'created_at': DateTime.now().toIso8601String(),
+    };
+    await _fs.db.collection('users').doc(user.uid).set(profile);
+    return UserModel.fromJson(profile);
   }
 
   Future<UserModel> getMe() async {
